@@ -3,6 +3,21 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.6.0] - 2026-04-04
+
+### Features
+
+- Redesign time tracking UI with session banner, time hub, and enhanced views (557f74e)
+
+  Replace tiny header timer widget with a persistent session banner showing
+  session duration, human/agent timer status, and clock-in/out controls.
+  Add comprehensive `/time` hub page with active timers panel, daily summary
+  stats, session history, and improved weekly timesheet with human/agent actor
+  type split. Enhance issue detail page with time budget progress bar,
+  human/agent breakdown, and actor badges. Add today's time summary card to
+  dashboard. New store methods: `ListRecentWorkSessions`,
+  `GetSessionUtilization`, `GetDailySummary`, `GetActiveTimersWithIssues`.
+
 ## [v0.5.0] - 2026-04-03
 
 ### Features
