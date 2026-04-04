@@ -3,6 +3,18 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.7.0] - 2026-04-04
+
+### Features
+
+- Standardize deployment with backup, health check, and rollback (d5d79aa)
+
+  Add deploy/deploy.sh with pre-flight checks, database backup, compose deploy,
+  health check, data verification, cleanup, and automatic rollback on failure.
+  All host-specific values live in deploy/.env (gitignored). New Makefile
+  targets: deploy, deploy/backup, deploy/rollback. New Cursor rule for
+  deployment guidance.
+
 ## [v0.6.0] - 2026-04-04
 
 ### Features
