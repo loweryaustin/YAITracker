@@ -25,7 +25,7 @@ Current version: determined by latest git tag (`git describe --tags`).
 1. Merge `develop` into `release/vX.Y.Z` branch
 2. Run `make changelog` to regenerate CHANGELOG.md via git-cliff
 3. Commit changelog: `chore(release): prepare vX.Y.Z`
-4. Merge release branch into `main`
+4. Merge release branch into `master`
 5. Tag: `git tag -a vX.Y.Z -m "release: vX.Y.Z"`
 6. Push tag -- CI runs GoReleaser
 
