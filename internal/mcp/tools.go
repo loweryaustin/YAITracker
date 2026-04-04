@@ -10,6 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"yaitracker.com/loweryaustin/internal/auth"
 	"yaitracker.com/loweryaustin/internal/model"
 	"yaitracker.com/loweryaustin/internal/store"
 )
@@ -49,12 +50,13 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 
 	// Issue tools
 	s.AddTool(mcp.NewTool("list_issues",
-		mcp.WithDescription("List issues for a project with optional filters"),
+		mcp.WithDescription("List issues for a project. Returns concise one-line-per-issue format by default; set format=json for full detail."),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
 		mcp.WithString("status", mcp.Description("Filter by status (comma-separated)")),
 		mcp.WithString("type", mcp.Description("Filter by type")),
 		mcp.WithString("assignee", mcp.Description("Filter by assignee name")),
 		mcp.WithString("query", mcp.Description("Search in title and description")),
+		mcp.WithString("format", mcp.Description("'json' for full detail, default is concise text")),
 	), toolListIssues(st))
 
 	s.AddTool(mcp.NewTool("get_issue",
@@ -94,6 +96,13 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("status", mcp.Required(), mcp.Description("New status")),
 	), toolMoveIssue(st))
 
+	s.AddTool(mcp.NewTool("delete_issue",
+		mcp.WithDescription("Permanently delete an issue and all its comments and time entries. Cannot be undone."),
+		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
+		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
+		mcp.WithBoolean("confirm", mcp.Required(), mcp.Description("Must be true to confirm deletion")),
+	), toolDeleteIssue(st))
+
 	s.AddTool(mcp.NewTool("add_comment",
 		mcp.WithDescription("Add a comment to an issue"),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
@@ -130,6 +139,7 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("timer_id", mcp.Description("Timer ID returned by start_timer")),
 		mcp.WithString("project_key", mcp.Description("Project key (alternative to timer_id)")),
 		mcp.WithNumber("number", mcp.Description("Issue number (alternative to timer_id)")),
+		mcp.WithString("actor_type", mcp.Description("Filter by 'human' or 'agent' when using project_key+number")),
 	), toolStopTimer(st))
 
 	s.AddTool(mcp.NewTool("get_session_status",
@@ -169,6 +179,20 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("tags", mcp.Required(), mcp.Description("Comma-separated tags for the new project")),
 		mcp.WithNumber("points", mcp.Required(), mcp.Description("Estimated story points for the project")),
 	), toolPredictNewProject(st))
+
+	// Compound workflow tools
+	s.AddTool(mcp.NewTool("begin_work",
+		mcp.WithDescription("Start working on an issue. Ensures a work session exists, moves the issue to in_progress, and starts an agent timer. Returns issue details and timer_id."),
+		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
+		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
+	), toolBeginWork(st))
+
+	s.AddTool(mcp.NewTool("complete_work",
+		mcp.WithDescription("Finish working on an issue. Stops the active timer, adds a summary comment, and moves the issue to done. Returns duration logged."),
+		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
+		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
+		mcp.WithString("summary", mcp.Required(), mcp.Description("Completion summary (added as comment)")),
+	), toolCompleteWork(st))
 }
 
 func toJSON(v interface{}) string {
@@ -206,12 +230,10 @@ func toolCreateProject(st *store.Store) server.ToolHandlerFunc {
 		key := strings.ToUpper(mcp.ParseString(req, "key", ""))
 		name := mcp.ParseString(req, "name", "")
 
-		// Need a user ID for created_by. Use first admin.
-		users, _ := st.ListUsers(ctx)
-		if len(users) == 0 {
-			return errResult(fmt.Errorf("no users exist")), nil
+		creatorID, err := userFromCtx(ctx, st)
+		if err != nil {
+			return errResult(err), nil
 		}
-		creatorID := users[0].ID
 
 		p := &model.Project{
 			Key:       key,
@@ -257,6 +279,33 @@ func toolDeleteProject(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		return textResult(fmt.Sprintf("Deleted project %s (%s) and all associated data", key, p.Name)), nil
+	}
+}
+
+func toolDeleteIssue(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		key := strings.ToUpper(mcp.ParseString(req, "project_key", ""))
+		number := mcp.ParseInt(req, "number", 0)
+		confirm := mcp.ParseBoolean(req, "confirm", false)
+
+		if !confirm {
+			return errResult(fmt.Errorf("set confirm=true to delete %s-%d", key, number)), nil
+		}
+
+		p, err := st.GetProjectByKey(ctx, key)
+		if err != nil {
+			return errResult(fmt.Errorf("project %s not found", key)), nil
+		}
+		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+		if err != nil {
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+		}
+
+		if err := st.DeleteIssue(ctx, issue.ID); err != nil {
+			return errResult(fmt.Errorf("delete issue: %w", err)), nil
+		}
+
+		return textResult(fmt.Sprintf("Deleted %s-%d: %s", key, number, issue.Title)), nil
 	}
 }
 
@@ -310,7 +359,21 @@ func toolListIssues(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		issues, total, _ := st.ListIssues(ctx, filter)
-		return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(issues), toJSON(issues))), nil
+
+		if mcp.ParseString(req, "format", "") == "json" {
+			return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(issues), toJSON(issues))), nil
+		}
+
+		var lines []string
+		for _, i := range issues {
+			pts := ""
+			if i.StoryPoints != nil {
+				pts = fmt.Sprintf(", %dpts", *i.StoryPoints)
+			}
+			lines = append(lines, fmt.Sprintf("%s-%d [%s, %s%s] %s",
+				key, i.Number, i.Status, i.Priority, pts, i.Title))
+		}
+		return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(lines), strings.Join(lines, "\n"))), nil
 	}
 }
 
@@ -353,9 +416,9 @@ func toolCreateIssue(st *store.Store) server.ToolHandlerFunc {
 			return errResult(fmt.Errorf("project %s not found", key)), nil
 		}
 
-		users, _ := st.ListUsers(ctx)
-		if len(users) == 0 {
-			return errResult(fmt.Errorf("no users exist")), nil
+		reporterID, err := userFromCtx(ctx, st)
+		if err != nil {
+			return errResult(err), nil
 		}
 
 		issueType := mcp.ParseString(req, "type", "task")
@@ -369,7 +432,7 @@ func toolCreateIssue(st *store.Store) server.ToolHandlerFunc {
 			Type:       issueType,
 			Status:     status,
 			Priority:   priority,
-			ReporterID: users[0].ID,
+			ReporterID: reporterID,
 		}
 
 		sp := mcp.ParseInt(req, "story_points", 0)
@@ -465,14 +528,14 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
 		}
 
-		users, _ := st.ListUsers(ctx)
-		if len(users) == 0 {
-			return errResult(fmt.Errorf("no users exist")), nil
+		userID, err := userFromCtx(ctx, st)
+		if err != nil {
+			return errResult(err), nil
 		}
 
 		c := &model.Comment{
 			IssueID:  issue.ID,
-			AuthorID: users[0].ID,
+			AuthorID: userID,
 			Body:     body,
 		}
 		st.CreateComment(ctx, c)
@@ -491,10 +554,16 @@ func toolSearchIssues(st *store.Store) server.ToolHandlerFunc {
 	}
 }
 
-func getFirstUser(ctx context.Context, st *store.Store) (string, error) {
+// userFromCtx returns the authenticated user's ID from context (set by bearer
+// token auth). Falls back to the first user in the database for backward
+// compatibility with unauthenticated clients.
+func userFromCtx(ctx context.Context, st *store.Store) (string, error) {
+	if u := auth.UserFromContext(ctx); u != nil {
+		return u.ID, nil
+	}
 	users, err := st.ListUsers(ctx)
 	if err != nil || len(users) == 0 {
-		return "", fmt.Errorf("no users exist")
+		return "", fmt.Errorf("no users exist -- configure a bearer token in .cursor/mcp.json")
 	}
 	return users[0].ID, nil
 }
@@ -503,7 +572,7 @@ func toolStartSession(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		desc := mcp.ParseString(req, "description", "")
 
-		userID, err := getFirstUser(ctx, st)
+		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -519,7 +588,7 @@ func toolStartSession(st *store.Store) server.ToolHandlerFunc {
 
 func toolEndSession(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		userID, err := getFirstUser(ctx, st)
+		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -553,7 +622,7 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
 		}
 
-		userID, err := getFirstUser(ctx, st)
+		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -567,7 +636,8 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 			sessionID = ws.ID
 		}
 
-		entry, err := st.StartTimer(ctx, issue.ID, userID, actorType, sessionID)
+		desc := mcp.ParseString(req, "description", "")
+		entry, err := st.StartTimer(ctx, issue.ID, userID, actorType, sessionID, desc)
 		if err != nil {
 			return errResult(fmt.Errorf("start timer: %w", err)), nil
 		}
@@ -582,6 +652,7 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 		timerID := mcp.ParseString(req, "timer_id", "")
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
+		actorFilter := mcp.ParseString(req, "actor_type", "")
 
 		if timerID != "" {
 			entry, err := st.StopTimerByID(ctx, timerID)
@@ -602,7 +673,7 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 				return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
 			}
 
-			userID, err := getFirstUser(ctx, st)
+			userID, err := userFromCtx(ctx, st)
 			if err != nil {
 				return errResult(err), nil
 			}
@@ -612,13 +683,13 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 				return errResult(fmt.Errorf("get active timers: %w", err)), nil
 			}
 			for _, t := range timers {
-				if t.IssueID == issue.ID {
+				if t.IssueID == issue.ID && (actorFilter == "" || t.ActorType == actorFilter) {
 					entry, err := st.StopTimerByID(ctx, t.ID)
 					if err != nil {
 						return errResult(fmt.Errorf("stop timer: %w", err)), nil
 					}
 					durationMin := float64(*entry.Duration) / 60
-					return textResult(fmt.Sprintf("Timer stopped on %s-%d. Duration: %.1f minutes", key, number, durationMin)), nil
+					return textResult(fmt.Sprintf("Timer stopped on %s-%d (%s). Duration: %.1f minutes", key, number, entry.ActorType, durationMin)), nil
 				}
 			}
 			return errResult(fmt.Errorf("no active timer found on %s-%d", key, number)), nil
@@ -630,7 +701,7 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 
 func toolGetSessionStatus(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		userID, err := getFirstUser(ctx, st)
+		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -764,5 +835,108 @@ func toolPredictNewProject(st *store.Store) server.ToolHandlerFunc {
 			return errResult(err), nil
 		}
 		return textResult(toJSON(pred)), nil
+	}
+}
+
+// --- Compound workflow tools ---
+
+func toolBeginWork(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		key := mcp.ParseString(req, "project_key", "")
+		number := mcp.ParseInt(req, "number", 0)
+
+		p, err := st.GetProjectByKey(ctx, key)
+		if err != nil {
+			return errResult(fmt.Errorf("project %s not found", key)), nil
+		}
+		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+		if err != nil {
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+		}
+
+		userID, err := userFromCtx(ctx, st)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		// Ensure a work session exists; create one if missing.
+		ws, _ := st.GetActiveWorkSession(ctx, userID)
+		if ws == nil {
+			ws, err = st.CreateWorkSession(ctx, userID, fmt.Sprintf("Working on %s-%d: %s", key, number, issue.Title))
+			if err != nil {
+				return errResult(fmt.Errorf("create session: %w", err)), nil
+			}
+		}
+
+		// Move issue to in_progress if not already there.
+		if issue.Status != "in_progress" {
+			if err := st.MoveIssue(ctx, issue.ID, "in_progress", 0); err != nil {
+				return errResult(fmt.Errorf("move issue: %w", err)), nil
+			}
+		}
+
+		// Start an agent timer.
+		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", "")
+		if err != nil {
+			return errResult(fmt.Errorf("start timer: %w", err)), nil
+		}
+
+		return textResult(fmt.Sprintf("Working on %s-%d: %s\ntimer_id: %s\nsession: %s",
+			key, number, issue.Title, entry.ID, ws.ID)), nil
+	}
+}
+
+func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		key := mcp.ParseString(req, "project_key", "")
+		number := mcp.ParseInt(req, "number", 0)
+		summary := mcp.ParseString(req, "summary", "")
+
+		p, err := st.GetProjectByKey(ctx, key)
+		if err != nil {
+			return errResult(fmt.Errorf("project %s not found", key)), nil
+		}
+		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+		if err != nil {
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+		}
+
+		userID, err := userFromCtx(ctx, st)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		// Stop active timer(s) on this issue.
+		var durationSec int64
+		timers, _ := st.GetActiveTimers(ctx, userID)
+		for _, t := range timers {
+			if t.IssueID == issue.ID {
+				stopped, err := st.StopTimerByID(ctx, t.ID)
+				if err == nil && stopped.Duration != nil {
+					durationSec += *stopped.Duration
+				}
+			}
+		}
+
+		// Add summary as a comment.
+		if summary != "" {
+			c := &model.Comment{
+				IssueID:  issue.ID,
+				AuthorID: userID,
+				Body:     summary,
+			}
+			st.CreateComment(ctx, c)
+		}
+
+		// Move issue to done.
+		if issue.Status != "done" {
+			if err := st.MoveIssue(ctx, issue.ID, "done", 0); err != nil {
+				return errResult(fmt.Errorf("move issue: %w", err)), nil
+			}
+		}
+
+		durationMin := float64(durationSec) / 60
+		return textResult(fmt.Sprintf("Completed %s-%d: %s\nTime logged: %.1f minutes",
+			key, number, issue.Title, durationMin)), nil
 	}
 }

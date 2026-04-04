@@ -135,7 +135,7 @@ func TestEndWorkSession_stopsHumanTimer(t *testing.T) {
 		t.Fatalf("CreateWorkSession() error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID)
+	_, err = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "")
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
