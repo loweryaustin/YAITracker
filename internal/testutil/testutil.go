@@ -74,3 +74,22 @@ func SeedProject(t *testing.T, st *store.Store, key string) (*model.Project, *mo
 	}
 	return p, u
 }
+
+// SeedIssue creates a test issue in the given project and returns it.
+func SeedIssue(t *testing.T, st *store.Store, projectID, reporterID string) *model.Issue {
+	t.Helper()
+
+	issue := &model.Issue{
+		ProjectID:  projectID,
+		Title:      "Test Issue " + store.NewID()[:6],
+		Type:       "task",
+		Status:     "backlog",
+		Priority:   "medium",
+		ReporterID: reporterID,
+	}
+
+	if err := st.CreateIssue(context.Background(), issue); err != nil {
+		t.Fatalf("testutil.SeedIssue: %v", err)
+	}
+	return issue
+}

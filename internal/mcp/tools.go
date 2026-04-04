@@ -100,14 +100,35 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
 	), toolSearchIssues(st))
 
-	// Time tracking tools
-	s.AddTool(mcp.NewTool("log_time",
-		mcp.WithDescription("Log time manually for an issue"),
+	// Work session tools
+	s.AddTool(mcp.NewTool("start_session",
+		mcp.WithDescription("Start a human work session (clock in). Only one active session per user."),
+		mcp.WithString("description", mcp.Description("Session description (e.g. 'morning dev block')")),
+	), toolStartSession(st))
+
+	s.AddTool(mcp.NewTool("end_session",
+		mcp.WithDescription("End the active work session (clock out). Auto-stops any running human timer. Returns session summary with duration."),
+	), toolEndSession(st))
+
+	// Timer tools
+	s.AddTool(mcp.NewTool("start_timer",
+		mcp.WithDescription("Start a real-time timer on an issue. Returns timer_id for later stop_timer call. Human timers require an active session and auto-stop previous human timer. Agent timers can run concurrently on different issues."),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
 		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
-		mcp.WithNumber("hours", mcp.Required(), mcp.Description("Hours to log")),
-		mcp.WithString("description", mcp.Description("What was done")),
-	), toolLogTime(st))
+		mcp.WithString("description", mcp.Description("What will be worked on")),
+		mcp.WithString("actor_type", mcp.Description("'human' or 'agent' (default: agent)")),
+	), toolStartTimer(st))
+
+	s.AddTool(mcp.NewTool("stop_timer",
+		mcp.WithDescription("Stop an active timer. Provide timer_id (returned by start_timer) OR project_key+number to identify which timer to stop."),
+		mcp.WithString("timer_id", mcp.Description("Timer ID returned by start_timer")),
+		mcp.WithString("project_key", mcp.Description("Project key (alternative to timer_id)")),
+		mcp.WithNumber("number", mcp.Description("Issue number (alternative to timer_id)")),
+	), toolStopTimer(st))
+
+	s.AddTool(mcp.NewTool("get_session_status",
+		mcp.WithDescription("Get current work session, all active timers, and utilization metrics."),
+	), toolGetSessionStatus(st))
 
 	s.AddTool(mcp.NewTool("get_time_entries",
 		mcp.WithDescription("Get time entries for an issue"),
@@ -442,12 +463,58 @@ func toolSearchIssues(st *store.Store) server.ToolHandlerFunc {
 	}
 }
 
-func toolLogTime(st *store.Store) server.ToolHandlerFunc {
+func getFirstUser(ctx context.Context, st *store.Store) (string, error) {
+	users, err := st.ListUsers(ctx)
+	if err != nil || len(users) == 0 {
+		return "", fmt.Errorf("no users exist")
+	}
+	return users[0].ID, nil
+}
+
+func toolStartSession(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		desc := mcp.ParseString(req, "description", "")
+
+		userID, err := getFirstUser(ctx, st)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		ws, err := st.CreateWorkSession(ctx, userID, desc)
+		if err != nil {
+			return errResult(fmt.Errorf("start session: %w", err)), nil
+		}
+
+		return textResult(fmt.Sprintf("Work session started (id: %s) at %s", ws.ID, ws.StartedAt.Format(time.RFC3339))), nil
+	}
+}
+
+func toolEndSession(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		userID, err := getFirstUser(ctx, st)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		ws, err := st.EndWorkSession(ctx, userID)
+		if err != nil {
+			return errResult(fmt.Errorf("end session: %w", err)), nil
+		}
+
+		durationMin := float64(*ws.Duration) / 60
+		return textResult(fmt.Sprintf("Work session ended. Duration: %.1f minutes", durationMin)), nil
+	}
+}
+
+func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
-		hours := mcp.ParseFloat64(req, "hours", 0)
-		desc := mcp.ParseString(req, "description", "")
+		actorType := mcp.ParseString(req, "actor_type", "agent")
+
+		if actorType != "human" && actorType != "agent" {
+			return errResult(fmt.Errorf("actor_type must be 'human' or 'agent', got '%s'", actorType)), nil
+		}
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
@@ -458,23 +525,129 @@ func toolLogTime(st *store.Store) server.ToolHandlerFunc {
 			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
 		}
 
-		users, _ := st.ListUsers(ctx)
-		if len(users) == 0 {
-			return errResult(fmt.Errorf("no users exist")), nil
+		userID, err := getFirstUser(ctx, st)
+		if err != nil {
+			return errResult(err), nil
 		}
 
-		durationSecs := int64(hours * 3600)
-		entry := &model.TimeEntry{
-			IssueID:     issue.ID,
-			UserID:      users[0].ID,
-			Description: desc,
-			Duration:    &durationSecs,
+		sessionID := ""
+		if actorType == "human" {
+			ws, _ := st.GetActiveWorkSession(ctx, userID)
+			if ws == nil {
+				return errResult(fmt.Errorf("no active work session -- call start_session first")), nil
+			}
+			sessionID = ws.ID
 		}
-		// Set started_at for manual entries
-		entry.StartedAt = time.Now().UTC()
-		st.CreateManualTimeEntry(ctx, entry)
 
-		return textResult(fmt.Sprintf("Logged %.1fh on %s-%d", hours, key, number)), nil
+		entry, err := st.StartTimer(ctx, issue.ID, userID, actorType, sessionID)
+		if err != nil {
+			return errResult(fmt.Errorf("start timer: %w", err)), nil
+		}
+
+		return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: %s, started: %s)",
+			key, number, entry.ID, actorType, entry.StartedAt.Format(time.RFC3339))), nil
+	}
+}
+
+func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		timerID := mcp.ParseString(req, "timer_id", "")
+		key := mcp.ParseString(req, "project_key", "")
+		number := mcp.ParseInt(req, "number", 0)
+
+		if timerID != "" {
+			entry, err := st.StopTimerByID(ctx, timerID)
+			if err != nil {
+				return errResult(fmt.Errorf("stop timer: %w", err)), nil
+			}
+			durationMin := float64(*entry.Duration) / 60
+			return textResult(fmt.Sprintf("Timer stopped (id: %s). Duration: %.1f minutes", entry.ID, durationMin)), nil
+		}
+
+		if key != "" && number > 0 {
+			p, err := st.GetProjectByKey(ctx, key)
+			if err != nil {
+				return errResult(fmt.Errorf("project %s not found", key)), nil
+			}
+			issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+			if err != nil {
+				return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			}
+
+			userID, err := getFirstUser(ctx, st)
+			if err != nil {
+				return errResult(err), nil
+			}
+
+			timers, err := st.GetActiveTimers(ctx, userID)
+			if err != nil {
+				return errResult(fmt.Errorf("get active timers: %w", err)), nil
+			}
+			for _, t := range timers {
+				if t.IssueID == issue.ID {
+					entry, err := st.StopTimerByID(ctx, t.ID)
+					if err != nil {
+						return errResult(fmt.Errorf("stop timer: %w", err)), nil
+					}
+					durationMin := float64(*entry.Duration) / 60
+					return textResult(fmt.Sprintf("Timer stopped on %s-%d. Duration: %.1f minutes", key, number, durationMin)), nil
+				}
+			}
+			return errResult(fmt.Errorf("no active timer found on %s-%d", key, number)), nil
+		}
+
+		return errResult(fmt.Errorf("provide either timer_id or project_key+number")), nil
+	}
+}
+
+func toolGetSessionStatus(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		userID, err := getFirstUser(ctx, st)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		var result strings.Builder
+
+		ws, _ := st.GetActiveWorkSession(ctx, userID)
+		if ws != nil {
+			elapsed := time.Since(ws.StartedAt)
+			result.WriteString(fmt.Sprintf("Work session active: %s (elapsed: %.1f min)\n",
+				ws.Description, elapsed.Minutes()))
+		} else {
+			result.WriteString("No active work session.\n")
+		}
+
+		timers, _ := st.GetActiveTimers(ctx, userID)
+		if len(timers) == 0 {
+			result.WriteString("No active timers.\n")
+		} else {
+			result.WriteString(fmt.Sprintf("\nActive timers (%d):\n", len(timers)))
+			var totalTimerSecs float64
+			for _, t := range timers {
+				elapsed := time.Since(t.StartedAt)
+				totalTimerSecs += elapsed.Seconds()
+				issueRef := t.IssueID
+				if issue, err := st.GetIssue(ctx, t.IssueID); err == nil {
+					if p, err := st.GetProjectByID(ctx, issue.ProjectID); err == nil {
+						issueRef = fmt.Sprintf("%s-%d", p.Key, issue.Number)
+					}
+				}
+				result.WriteString(fmt.Sprintf("  - %s [%s] timer_id:%s elapsed:%.1fmin\n",
+					issueRef, t.ActorType, t.ID, elapsed.Minutes()))
+			}
+
+			if ws != nil {
+				sessionSecs := time.Since(ws.StartedAt).Seconds()
+				if sessionSecs > 0 {
+					utilization := (totalTimerSecs / sessionSecs) * 100
+					result.WriteString(fmt.Sprintf("\nUtilization: %.0f%% (%.1fmin focused / %.1fmin session)\n",
+						utilization, totalTimerSecs/60, sessionSecs/60))
+				}
+			}
+		}
+
+		return textResult(result.String()), nil
 	}
 }
 

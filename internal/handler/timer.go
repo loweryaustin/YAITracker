@@ -22,12 +22,21 @@ func (h *Handler) PostStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stop any existing timer first
-	if active, _ := h.Store.GetActiveTimer(r.Context(), user.ID); active != nil {
-		h.Store.StopTimer(r.Context(), user.ID)
+	// Ensure a work session exists for the human
+	sessionID := ""
+	ws, _ := h.Store.GetActiveWorkSession(r.Context(), user.ID)
+	if ws != nil {
+		sessionID = ws.ID
+	} else {
+		ws, err := h.Store.CreateWorkSession(r.Context(), user.ID, "")
+		if err != nil {
+			http.Error(w, "could not create work session", http.StatusInternalServerError)
+			return
+		}
+		sessionID = ws.ID
 	}
 
-	entry, err := h.Store.StartTimer(r.Context(), issueID, user.ID)
+	entry, err := h.Store.StartTimer(r.Context(), issueID, user.ID, "human", sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
