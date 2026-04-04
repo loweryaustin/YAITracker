@@ -123,6 +123,55 @@ func TestEndWorkSession_noActive(t *testing.T) {
 	}
 }
 
+func TestListRecentWorkSessions(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+	u := testutil.SeedUser(t, st)
+
+	ws1, _ := st.CreateWorkSession(ctx, u.ID, "first")
+	st.EndWorkSession(ctx, u.ID)
+
+	ws2, _ := st.CreateWorkSession(ctx, u.ID, "second")
+	st.EndWorkSession(ctx, u.ID)
+
+	sessions, err := st.ListRecentWorkSessions(ctx, u.ID, 10)
+	if err != nil {
+		t.Fatalf("ListRecentWorkSessions() error = %v", err)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("ListRecentWorkSessions() returned %d, want 2", len(sessions))
+	}
+	if sessions[0].ID != ws2.ID {
+		t.Error("ListRecentWorkSessions() should return most recent first")
+	}
+	if sessions[1].ID != ws1.ID {
+		t.Error("ListRecentWorkSessions() second entry should be older session")
+	}
+}
+
+func TestGetSessionUtilization(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+	p, u := testutil.SeedProject(t, st, "UTIL")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	ws, _ := st.CreateWorkSession(ctx, u.ID, "utilization test")
+	_, _ = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "")
+	st.StopTimer(ctx, u.ID)
+	st.EndWorkSession(ctx, u.ID)
+
+	util, err := st.GetSessionUtilization(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("GetSessionUtilization() error = %v", err)
+	}
+	// Both session and timer were very short, so utilization should be >= 0
+	if util < 0 {
+		t.Errorf("GetSessionUtilization() = %v, want >= 0", util)
+	}
+}
+
 func TestEndWorkSession_stopsHumanTimer(t *testing.T) {
 	t.Parallel()
 	st := testutil.NewTestStore(t)

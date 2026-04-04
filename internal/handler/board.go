@@ -103,9 +103,6 @@ document.querySelectorAll('[id^="column-"]').forEach(function(col) {
     });
 });
 </script>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 

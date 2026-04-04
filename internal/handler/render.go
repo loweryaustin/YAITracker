@@ -14,6 +14,7 @@ import (
 var funcMap = template.FuncMap{
 	"formatDuration": FormatDuration,
 	"timeAgo":        TimeAgo,
+	"elapsed":        func(t time.Time) int64 { return int64(time.Since(t).Seconds()) },
 	"join":           strings.Join,
 	"contains":       contains,
 	"statusColor":    StatusColor,
@@ -25,6 +26,12 @@ var funcMap = template.FuncMap{
 	"statuses":       func() []string { return model.IssueStatuses },
 	"types":          func() []string { return model.IssueTypes },
 	"priorities":     func() []string { return model.IssuePriorities },
+	"budgetPct": func(totalSecs int64, estHours float64) float64 {
+		if estHours <= 0 {
+			return 0
+		}
+		return float64(totalSecs) / (estHours * 3600) * 100
+	},
 	"subtract":       func(a, b int) int { return a - b },
 	"add":            func(a, b int) int { return a + b },
 	"hasMore":        func(total, page, perPage int) bool { return page*perPage < total },
@@ -188,9 +195,6 @@ const appLayout = baseTpl + `
                    hx-get="/search" hx-trigger="keyup changed delay:200ms" hx-target="#search-results" name="q">
             <div id="search-results"></div>
         </div>
-        <div class="flex items-center gap-4 ml-4" id="timer-widget">
-            {{template "timer" .}}
-        </div>
         <div class="ml-4 flex items-center gap-2" x-data="{ open: false }">
             <button @click="open = !open" class="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-100">
                 <div class="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-medium">
@@ -207,6 +211,7 @@ const appLayout = baseTpl + `
             </div>
         </div>
     </header>
+    <div id="session-banner" hx-get="/partials/session-banner" hx-trigger="load" hx-swap="innerHTML"></div>
     <div class="flex flex-1">
         <!-- Sidebar -->
         <aside class="w-60 bg-white border-r border-slate-200 p-4 flex-shrink-0 overflow-y-auto" id="sidebar">
@@ -226,10 +231,10 @@ const appLayout = baseTpl + `
                 </div>
             </div>
             <div class="mt-6 space-y-1">
-                <a href="/time/sheet"
-                   class="flex items-center gap-2 px-3 py-2 rounded-md {{if eq .ActiveNav "timesheet"}}bg-blue-50 text-blue-700 font-medium{{else}}hover:bg-slate-100{{end}}">
+                <a href="/time"
+                   class="flex items-center gap-2 px-3 py-2 rounded-md {{if eq .ActiveNav "time"}}bg-blue-50 text-blue-700 font-medium{{else}}hover:bg-slate-100{{end}}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Timesheet
+                    Time
                 </a>
                 <a href="/analytics/compare"
                    class="flex items-center gap-2 px-3 py-2 rounded-md {{if eq .ActiveNav "compare"}}bg-blue-50 text-blue-700 font-medium{{else}}hover:bg-slate-100{{end}}">
@@ -275,8 +280,7 @@ func init() {
         Log in
     </button>
 </form>
-{{end}}
-{{define "timer"}}{{end}}`))
+{{end}}`))
 
 	registerTpl = template.Must(template.New("register").Funcs(funcMap).Parse(authLayout + `
 {{define "content"}}
@@ -304,8 +308,7 @@ func init() {
         Create Account
     </button>
 </form>
-{{end}}
-{{define "timer"}}{{end}}`))
+{{end}}`))
 }
 
 func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, errorMsg, email string) {

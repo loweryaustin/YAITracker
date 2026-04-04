@@ -140,9 +140,6 @@ var projectAnalyticsTpl = template.Must(template.New("project-analytics").Funcs(
         {{end}}
     </div>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 
@@ -236,9 +233,6 @@ var compareTpl = template.Must(template.New("compare").Funcs(funcMap).Parse(appL
 {{else}}
 <p class="text-slate-400">Select a tag group to compare projects.</p>
 {{end}}
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 func (h *Handler) GetCompare(w http.ResponseWriter, r *http.Request) {
@@ -307,9 +301,6 @@ var predictTpl = template.Must(template.New("predict").Funcs(funcMap).Parse(appL
     </div>
 </div>
 {{end}}
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 func (h *Handler) GetPredict(w http.ResponseWriter, r *http.Request) {

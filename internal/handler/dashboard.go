@@ -3,18 +3,66 @@ package handler
 import (
 	"html/template"
 	"net/http"
+	"time"
 
 	"yaitracker.com/loweryaustin/internal/model"
+	"yaitracker.com/loweryaustin/internal/store"
 )
 
 type dashboardData struct {
-	Projects   []model.ProjectSummary
-	Activities []model.ActivityLog
+	Projects     []model.ProjectSummary
+	Activities   []model.ActivityLog
+	DailySummary *store.DailySummary
+	Session      *model.WorkSession
+	SessionSecs  int64
+	ActiveCount  int
 }
 
 var dashboardTpl = template.Must(template.New("dashboard").Funcs(funcMap).Parse(appLayout + `
 {{define "content"}}
 <h1 class="text-xl font-semibold text-slate-900 mb-6">Dashboard</h1>
+
+<!-- Today's Time Card -->
+<div class="bg-white rounded-lg border border-slate-200 p-4 mb-6">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-6">
+            <div>
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Session</div>
+                {{if .Content.Session}}
+                <div class="text-sm font-medium text-emerald-600"
+                     x-data="{ s: {{.Content.SessionSecs}} }" x-init="setInterval(() => s++, 1000)"
+                     x-text="'Active ' + Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm'">
+                </div>
+                {{else}}
+                <div class="text-sm text-slate-400">Not clocked in</div>
+                {{end}}
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div>
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Today</div>
+                <div class="text-sm font-mono font-medium">{{formatDuration .Content.DailySummary.TotalSecs}}</div>
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div>
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Human / Agent</div>
+                <div class="text-sm">
+                    <span class="font-mono text-blue-600">{{formatDuration .Content.DailySummary.HumanSecs}}</span>
+                    <span class="text-slate-300 mx-1">/</span>
+                    <span class="font-mono text-purple-600">{{formatDuration .Content.DailySummary.AgentSecs}}</span>
+                </div>
+            </div>
+            {{if gt .Content.ActiveCount 0}}
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div>
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Active Timers</div>
+                <div class="text-sm font-medium">{{.Content.ActiveCount}}</div>
+            </div>
+            {{end}}
+        </div>
+        <a href="/time" class="text-xs text-blue-600 hover:underline">View all &rarr;</a>
+    </div>
+</div>
+
 <div class="grid grid-cols-3 gap-6">
     <div class="col-span-2 space-y-4">
         <div class="flex items-center justify-between mb-2">
@@ -71,18 +119,29 @@ var dashboardTpl = template.Must(template.New("dashboard").Funcs(funcMap).Parse(
         </div>
     </div>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 func (h *Handler) GetDashboard(w http.ResponseWriter, r *http.Request) {
-	projects, _ := h.Store.ListProjectSummaries(r.Context())
-	activities, _ := h.Store.ListRecentActivity(r.Context(), 20)
+	user := h.currentUser(r)
+	ctx := r.Context()
+	projects, _ := h.Store.ListProjectSummaries(ctx)
+	activities, _ := h.Store.ListRecentActivity(ctx, 20)
+	dailySummary, _ := h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
+	session, _ := h.Store.GetActiveWorkSession(ctx, user.ID)
+	activeTimers, _ := h.Store.GetActiveTimers(ctx, user.ID)
+
+	var sessionSecs int64
+	if session != nil {
+		sessionSecs = int64(time.Since(session.StartedAt).Seconds())
+	}
 
 	pd := h.newPageData(r, "Dashboard", dashboardData{
-		Projects:   projects,
-		Activities: activities,
+		Projects:     projects,
+		Activities:   activities,
+		DailySummary: dailySummary,
+		Session:      session,
+		SessionSecs:  sessionSecs,
+		ActiveCount:  len(activeTimers),
 	})
 	pd.ActiveNav = "dashboard"
 	h.renderApp(w, r, "dashboard", dashboardTpl, pd)
