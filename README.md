@@ -133,9 +133,7 @@ Add to your MCP settings:
 | `delete_issue` | Permanently delete an issue and all related data |
 | `add_comment` | Add a comment to an issue |
 | `search_issues` | Search issues across all projects |
-| `start_session` | Start a human work session (clock in) |
-| `end_session` | End the active work session (clock out) |
-| `start_timer` | Start a real-time timer on an issue (human or agent) |
+| `start_timer` | Start an agent timer on an issue |
 | `stop_timer` | Stop an active timer by ID or project key + number |
 | `get_session_status` | Get current session, active timers, and utilization metrics |
 | `get_time_entries` | Get time entries for an issue |

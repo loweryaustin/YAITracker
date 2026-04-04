@@ -277,6 +277,13 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 	h.renderApp(w, r, "time-hub", timeHubTpl, pd)
 }
 
+type agentTimerInfo struct {
+	ProjectKey string
+	Number     int
+	Title      string
+	Secs       int64
+}
+
 type sessionBannerData struct {
 	Session      *model.WorkSession
 	SessionSecs  int64
@@ -284,7 +291,7 @@ type sessionBannerData struct {
 	HumanIssue   *model.Issue
 	HumanKey     string
 	HumanSecs    int64
-	AgentTimers  []model.TimeEntry
+	AgentTimers  []agentTimerInfo
 	AgentSecs    int64
 	DailySummary *store.DailySummary
 }
@@ -316,7 +323,9 @@ var sessionBannerTpl = template.Must(template.New("session-banner").Funcs(funcMa
         <div class="h-4 w-px bg-blue-200"></div>
         <div class="flex items-center gap-2">
             <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-            <span class="text-purple-700 text-xs font-medium">{{len .AgentTimers}} agent{{if gt (len .AgentTimers) 1}}s{{end}}</span>
+            {{range .AgentTimers}}
+            <a href="/projects/{{.ProjectKey}}/issues/{{.Number}}" class="text-purple-700 text-xs font-medium hover:underline">{{.ProjectKey}}-{{.Number}}</a>
+            {{end}}
             <span class="font-mono text-purple-600 text-xs" x-text="Math.floor(agentSecs/3600) + 'h ' + Math.floor((agentSecs%3600)/60) + 'm'"></span>
         </div>
         {{end}}
@@ -365,11 +374,18 @@ func (h *Handler) renderSessionBanner(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	allTimers, _ := h.Store.GetActiveTimers(ctx, user.ID)
+	allTimers, _ := h.Store.GetActiveTimersWithIssues(ctx, user.ID)
 	for _, t := range allTimers {
 		if t.ActorType == "agent" {
-			data.AgentTimers = append(data.AgentTimers, t)
-			data.AgentSecs += int64(time.Since(t.StartedAt).Seconds())
+			secs := int64(time.Since(t.StartedAt).Seconds())
+			info := agentTimerInfo{Secs: secs}
+			if t.Issue != nil {
+				info.ProjectKey = t.Issue.ProjectKey
+				info.Number = t.Issue.Number
+				info.Title = t.Issue.Title
+			}
+			data.AgentTimers = append(data.AgentTimers, info)
+			data.AgentSecs += secs
 		}
 	}
 
@@ -412,27 +428,29 @@ var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(app
     {{if $d.ActiveTimers}}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {{range $d.ActiveTimers}}
-        <div class="border border-slate-200 rounded-lg p-3 flex items-center justify-between"
+        <div class="border border-slate-200 rounded-lg p-3"
              x-data="{ elapsed: {{elapsed .StartedAt}} }" x-init="setInterval(() => elapsed++, 1000)">
-            <div class="flex items-center gap-2 min-w-0">
-                {{if eq .ActorType "agent"}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
-                {{else}}
-                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
-                {{end}}
-                <a href="/projects/{{.Issue.ProjectKey}}/issues/{{.Issue.Number}}" class="font-mono text-xs text-blue-600 hover:underline truncate">
-                    {{.Issue.ProjectKey}}-{{.Issue.Number}}
-                </a>
-                <span class="text-xs text-slate-500 truncate">{{.Issue.Title}}</span>
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                    {{if eq .ActorType "agent"}}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
+                    {{else}}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
+                    {{end}}
+                    <a href="/projects/{{.Issue.ProjectKey}}/issues/{{.Issue.Number}}" class="font-mono text-sm font-medium text-blue-600 hover:underline">
+                        {{.Issue.ProjectKey}}-{{.Issue.Number}}
+                    </a>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-mono text-sm text-slate-700" x-text="Math.floor(elapsed/3600) + 'h ' + Math.floor((elapsed%3600)/60) + 'm ' + (elapsed%60) + 's'"></span>
+                    {{if eq .ActorType "human"}}
+                    <button hx-post="/time/stop" hx-target="#session-banner" hx-swap="innerHTML"
+                            class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100"
+                            onclick="setTimeout(() => location.reload(), 300)">Stop</button>
+                    {{end}}
+                </div>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0 ml-2">
-                <span class="font-mono text-sm" x-text="Math.floor(elapsed/3600) + 'h ' + Math.floor((elapsed%3600)/60) + 'm ' + (elapsed%60) + 's'"></span>
-                {{if eq .ActorType "human"}}
-                <button hx-post="/time/stop" hx-target="#session-banner" hx-swap="innerHTML"
-                        class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100"
-                        onclick="setTimeout(() => location.reload(), 300)">Stop</button>
-                {{end}}
-            </div>
+            <div class="text-sm text-slate-600 truncate pl-7">{{.Issue.Title}}</div>
         </div>
         {{end}}
     </div>
