@@ -79,11 +79,12 @@ run: build
 # Quality Control
 # ──────────────────────────────────────────────────────
 
-# Pinned to .github/workflows/ci.yml (golangci-lint-action "version").
+# Pinned with .github/workflows/ci.yml lint job; bump both together.
 GOLANGCI_LINT_VER := v2.11.4
 GOLANGCI_LINT     := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VER)
 
-# govulncheck loads std and deps; GOTOOLCHAIN must match go.mod (see golang.org/x/vuln docs).
+# Pinned with .github/workflows/ci.yml vulncheck job; bump both together.
+# GOTOOLCHAIN must match go.mod when loading packages (see golang.org/x/vuln docs).
 GOVULNCHECK_VER := v1.1.4
 
 ## test: run all unit tests with race detection
