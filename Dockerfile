@@ -1,12 +1,16 @@
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache git ca-certificates tzdata curl
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
+RUN curl -sL https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 -o /usr/local/bin/tailwindcss \
+    && chmod +x /usr/local/bin/tailwindcss
+
 COPY . .
+RUN tailwindcss -i static/css/input.css -o static/css/app.css --minify
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /yaitracker ./cmd/yaitracker
 
 RUN adduser -D -u 1000 yaitracker
