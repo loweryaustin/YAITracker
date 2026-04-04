@@ -9,6 +9,7 @@ trackrack
 
 # Environment
 .env
+deploy/.env
 
 # IDE
 .cursor/mcp.json
