@@ -30,22 +30,54 @@
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
 
+    <!-- WebSite: establishes site identity for search engines and AI engines -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "YAITracker",
+        "url": "https://yaitracker.com",
+        "description": "AI-native issue tracker with MCP integration, human/agent time tracking, and velocity analytics.",
+        "publisher": {
+            "@type": "Person",
+            "@id": "https://yaitracker.com/#author",
+            "name": "Austin Lowery",
+            "url": "https://github.com/loweryaustin"
+        }
+    }
+    </script>
+
+    <!-- Person: author entity for E-E-A-T and knowledge graph -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "@id": "https://yaitracker.com/#author",
+        "name": "Austin Lowery",
+        "url": "https://github.com/loweryaustin",
+        "sameAs": [
+            "https://github.com/loweryaustin"
+        ]
+    }
+    </script>
+
+    <!-- SoftwareApplication: app metadata for rich results -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "YAITracker",
         "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "Project Management",
         "operatingSystem": "Linux, macOS, Windows",
         "description": "AI-native issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics. Self-hosted open-source alternative to Jira and Linear for AI-assisted development.",
         "url": "https://yaitracker.com",
         "downloadUrl": "https://github.com/loweryaustin/YAITracker",
+        "installUrl": "https://github.com/loweryaustin/YAITracker#get-started",
+        "screenshot": "https://yaitracker.com/screenshots/dashboard.png",
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-        "author": {
-            "@type": "Person",
-            "name": "Austin Lowery",
-            "url": "https://github.com/loweryaustin"
-        },
+        "isAccessibleForFree": true,
+        "author": { "@id": "https://yaitracker.com/#author" },
         "offers": {
             "@type": "Offer",
             "price": "0",
@@ -53,10 +85,90 @@
         },
         "softwareVersion": "0.8.2",
         "programmingLanguage": "Go",
-        "keywords": "issue tracker, MCP, model context protocol, AI tools, time tracking, project management, Cursor, Copilot, Claude, velocity analytics"
+        "featureList": [
+            "Model Context Protocol (MCP) server with 25 tools",
+            "Human and AI agent time tracking",
+            "Kanban board with drag-and-drop",
+            "Velocity analytics and project health scores",
+            "Cross-project comparison by technology tags",
+            "Project timeline prediction from historical data",
+            "REST API with OAuth2 authentication",
+            "Self-hosted with Docker support"
+        ],
+        "keywords": "issue tracker, MCP, model context protocol, AI tools, time tracking, project management, Cursor, Copilot, Claude, velocity analytics, Jira alternative, Linear alternative"
     }
     </script>
 
+    <!-- SoftwareSourceCode: open-source repo metadata -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "YAITracker",
+        "description": "AI-native issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics.",
+        "codeRepository": "https://github.com/loweryaustin/YAITracker",
+        "url": "https://github.com/loweryaustin/YAITracker",
+        "programmingLanguage": [
+            { "@type": "ComputerLanguage", "name": "Go" },
+            { "@type": "ComputerLanguage", "name": "HTML" },
+            { "@type": "ComputerLanguage", "name": "JavaScript" }
+        ],
+        "runtimePlatform": "Go 1.24+",
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "author": { "@id": "https://yaitracker.com/#author" },
+        "dateCreated": "2026-04-04",
+        "codeSampleType": "full solution"
+    }
+    </script>
+
+    <!-- HowTo: "Get Started" steps for rich result carousels -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "How to install and run YAITracker",
+        "description": "Set up YAITracker, an AI-native issue tracker with MCP integration, from source or with Docker.",
+        "totalTime": "PT5M",
+        "estimatedCost": {
+            "@type": "MonetaryAmount",
+            "currency": "USD",
+            "value": "0"
+        },
+        "tool": [
+            { "@type": "HowToTool", "name": "Go 1.24 or later" },
+            { "@type": "HowToTool", "name": "Git" },
+            { "@type": "HowToTool", "name": "Docker (optional)" }
+        ],
+        "step": [
+            {
+                "@type": "HowToStep",
+                "position": 1,
+                "name": "Clone the repository",
+                "text": "Clone the YAITracker repository from GitHub using: git clone https://github.com/loweryaustin/YAITracker.git"
+            },
+            {
+                "@type": "HowToStep",
+                "position": 2,
+                "name": "Build the binary",
+                "text": "Navigate to the project directory and build: cd YAITracker && make build"
+            },
+            {
+                "@type": "HowToStep",
+                "position": 3,
+                "name": "Set a secret key",
+                "text": "Export a secret key of at least 32 characters: export YAITRACKER_SECRET=\"your-secret-here\""
+            },
+            {
+                "@type": "HowToStep",
+                "position": 4,
+                "name": "Start the server",
+                "text": "Run the server: ./yaitracker serve — it will be available at http://localhost:8080"
+            }
+        ]
+    }
+    </script>
+
+    <!-- FAQPage: FAQ section for rich snippets and AI answer engines -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -92,6 +204,14 @@
                 "acceptedAnswer": {
                     "@type": "Answer",
                     "text": "Yes. YAITracker is free and open source, licensed under AGPLv3. You can self-host it on your own infrastructure."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What AI tools does YAITracker work with?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "YAITracker works with any MCP-compatible AI client, including Cursor, Claude Desktop, Windsurf, and other editors that support the Model Context Protocol via stdio or HTTP (SSE) transport."
                 }
             }
         ]
