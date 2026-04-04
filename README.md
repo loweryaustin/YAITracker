@@ -265,7 +265,7 @@ Hooks are a local aid only; they do not replace server-side branch protection. B
 
 YAITracker is open to contributions. If you have ideas about how AI changes development workflows -- or you just want better issue tracking -- open an issue or submit a PR.
 
-This project follows [Conventional Commits](https://www.conventionalcommits.org/) and [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/) branching. Default integration branches are `develop` and `master` (releases are tagged on `master`).
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for branch naming, commits, hooks, and the PR checklist. This project follows [Conventional Commits](https://www.conventionalcommits.org/) and [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/) branching. Default integration branches are `develop` and `master` (releases are tagged on `master`).
 
 ## License
 
