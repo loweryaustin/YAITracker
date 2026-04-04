@@ -80,7 +80,7 @@ var boardTpl = template.Must(template.New("board").Funcs(funcMap).Parse(appLayou
     </div>
     {{end}}
 </div>
-<script>
+<script nonce="{{$.Nonce}}">
 document.querySelectorAll('[id^="column-"]').forEach(function(col) {
     new Sortable(col, {
         group: 'board',
