@@ -3,6 +3,58 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.9.0] - 2026-04-04
+
+### Features
+
+- Add GitHub Pages landing page at yaitracker.com (290d7e6)
+
+  Static landing page in `docs/` with hero section, feature overview, MCP
+  integration showcase, and get started instructions. Custom domain via
+  CNAME file. Tailwind CSS via CDN.
+
+  Refs: YAIT-12
+
+- Add app screenshots and redesign landing page (22bbe86)
+
+  Captured 5 browser screenshots (dashboard, board, time tracking, issue
+  detail, analytics) via Playwright. Rebuilt landing page with browser-frame
+  hero mockup, alternating image/text feature sections, and styled MCP
+  integration showcase.
+
+  Refs: YAIT-16
+
+- Add SEO/GEO polish, animated terminal, favicon, OG image, FAQ (e5eb425)
+
+  Animated MCP terminal with IntersectionObserver typing effect. OG social
+  preview image and favicon. JSON-LD structured data (SoftwareApplication +
+  FAQPage). FAQ section with expandable accordions. Scroll-triggered fade-in
+  animations. Gradient mesh backgrounds and section dividers. Semantic HTML
+  with ARIA labels.
+
+  Refs: YAIT-16, YAIT-19
+
+- Add comprehensive structured data and GEO-optimized robots.txt (54a66b2)
+
+  WebSite, Person, SoftwareSourceCode, and HowTo JSON-LD schemas.
+  Cross-referenced entities via @id URIs. robots.txt explicitly allows
+  GPTBot, ClaudeBot, PerplexityBot, Google-Extended, and cohere-ai crawlers.
+  sitemap.xml for search indexing.
+
+  Refs: YAIT-19
+
+### Documentation
+
+- Rewrite README for public audience with AI-native positioning (3e23938)
+
+  Updated introductory text, tagline, and "Why YAITracker?" section to
+  emphasize AI-era productivity, multi-agent orchestration, and automation.
+  Added SEO keywords, competitor mentions (Jira, Linear), and AI tool
+  compatibility (Cursor, Copilot, Claude). Contributing section and alpha
+  software notice.
+
+  Refs: YAIT-11
+
 ## [v0.8.2] - 2026-04-04
 
 ### Bug Fixes
