@@ -1,50 +1,62 @@
 # YAITracker
 
-A self-hosted issue tracker with built-in time tracking, velocity analytics, and a first-class MCP server for AI interaction. Ships as a single Go binary with embedded SQLite.
+**Your Automated Intelligence Tracker** (or *Yet Another Issue Tracker*, depending on how many grey hairs you have).
+
+A self-hosted, AI-native issue tracker with built-in [MCP](https://modelcontextprotocol.io/) integration, human/agent time tracking, and velocity analytics. An alternative to Jira and Linear for developers who work alongside AI agents.
+
+> **Alpha Software** -- YAITracker is under active development. Features are missing, some things are broken, and the API will change. I'm dogfooding this project as I build it -- logging issues and tracking time from day one, then using what I find to improve it as I go. Send me your feedback about what you want to see in this project, your own AI workflows, or anything else that you think would be useful.
+
+## Why YAITracker?
+
+Traditional issue trackers were built for a world where humans write all the code. AI coding tools like Cursor, Copilot, and Claude have fundamentally changed development velocity, but project management hasn't caught up. When AI agents can produce code in minutes, the old assumptions about estimation, sprint planning, and time tracking fall apart.
+
+The most effective developers in the AI age aren't just using one agent -- they're orchestrating multiple agents in parallel, sometimes across multiple projects at once. One person's hour of productivity can look radically different from another's depending on how well they manage that orchestration. The right tooling makes that difference easier to see, measure, and act on.
+
+YAITracker is built around these ideas:
+
+- **Automate the busywork of project management** -- Keeping issues updated with good notes, accurate time logs, and useful documentation was always valuable but painfully time-consuming. With MCP integration, your AI assistant handles that overhead at the speed of the conversation -- creating issues, logging time, adding summaries, moving cards -- so you get more consistent, more detailed tracking than ever with almost zero manual effort.
+- **Understand the full picture of your output** -- See how much work was done overall and how much of it was a result of your effort. Clock in and out of work sessions, track agent timers alongside your own, and see the full scope of what you produced. When you're orchestrating multiple agents across multiple projects, this is how you measure and improve your real productivity.
+- **AI as a first-class participant** -- A full [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server lets AI assistants in Cursor, Claude Desktop, or any MCP-compatible client create issues, start timers, move cards on the board, and log their own work -- all without leaving the editor. This also opens the door for teams working with project managers, stakeholders, and other AI-enhanced participants to collaborate efficiently through a shared, always-up-to-date project state.
+- **Turn the data into better decisions** -- Track bugs, time, and issues across projects and tag them by framework, language, or workflow. Use velocity analytics, cross-project comparison, and prediction tools to understand which technologies you get the best results with, where the bottlenecks are, and how to estimate more accurately as your team (human + AI) evolves.
+
+The goal is a full-featured issue tracker that helps people get more done, at higher quality, in the age of AI tools and orchestration. Right now it's in early development and best suited for small, personal deployments -- but the vision is much bigger than that.
 
 ## Features
 
-- **Issue Tracking** -- Jira-style issues with types, priorities, labels, epics, parent/child hierarchy
-- **Kanban Board** -- Drag-and-drop board with SortableJS, real-time updates via htmx
-- **Time Tracking** -- Real-time start/stop timers, work sessions (clock-in/out), human vs agent time split
+- **Issue Tracking** -- Jira-style issues with types, priorities, labels, epics, and parent/child hierarchy
+- **Kanban Board** -- Drag-and-drop board with real-time updates
+- **Time Tracking** -- Real-time start/stop timers, work sessions (clock-in/out), human vs. agent time split
 - **Velocity Analytics** -- Sprint velocity, cycle time, estimation accuracy, project health
-- **Cross-Project Comparison** -- Compare metrics across projects by technology tags (Go vs PHP, etc.)
+- **Cross-Project Comparison** -- Compare metrics across projects by technology tags (Go vs. PHP, etc.)
 - **Project Prediction** -- Estimate timelines for new projects based on historical data
 - **MCP Server** -- Full MCP integration for AI-powered project management via tools and resources
 - **REST API** -- JSON API with OAuth2 authentication for mobile apps and integrations
 - **Web UI** -- Server-rendered HTML with htmx and Alpine.js (no SPA framework needed)
+- **Simple Deployment** -- Single binary with embedded static assets. SQLite for zero-config local use today; additional database backends planned.
 
 ## Quick Start
 
 ### From Source
 
 ```bash
-# Clone and build
 git clone https://github.com/loweryaustin/YAITracker.git
 cd YAITracker
 make build
 
-# Set a secret (must be 32+ characters)
 export YAITRACKER_SECRET="your-secret-key-at-least-32-characters-long"
 
-# Run the web server
 ./yaitracker serve
-
 # Open http://localhost:8080
 ```
 
 ### Docker
 
 ```bash
-# Build the image
 make docker
 
-# Create a .env file
 echo 'YAITRACKER_SECRET=your-secret-key-at-least-32-characters-long' > .env
 
-# Start the container
 docker compose up -d
-
 # Open http://localhost:8080
 ```
 
@@ -78,17 +90,13 @@ volumes:
   caddy-config:
 ```
 
-## CLI Usage
+## CLI
 
 ```bash
-# Start the web server
 yaitracker serve --addr :8080 --db yaitracker.db
 
-# Start the MCP server (stdio transport)
 yaitracker mcp --db yaitracker.db
 ```
-
-### Flags
 
 | Flag | Env Var | Default | Description |
 |------|---------|---------|-------------|
@@ -99,11 +107,11 @@ yaitracker mcp --db yaitracker.db
 
 ## MCP Server
 
-YAITracker includes a first-class MCP server for AI interaction. Connect it to any MCP-compatible client (Cursor, Claude Desktop, etc.).
+YAITracker includes a first-class MCP server so your AI assistant can manage issues, track time, and query analytics without leaving your editor. Connect it to any MCP-compatible client (Cursor, Claude Desktop, etc.).
 
 ### Setup in Cursor
 
-Add to your MCP settings:
+Add to `.cursor/mcp.json`:
 
 ```json
 {
@@ -116,10 +124,27 @@ Add to your MCP settings:
 }
 ```
 
-### Available Tools
+Or connect to a running instance over HTTP:
+
+```json
+{
+  "mcpServers": {
+    "yaitracker": {
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+### Tools
 
 | Tool | Description |
 |------|-------------|
+| `begin_work` | Start working on an issue (starts timer, moves to in-progress) |
+| `complete_work` | Finish an issue (stops timer, adds summary, moves to done) |
+| `start_timer` | Start an agent timer on an issue |
+| `stop_timer` | Stop an active timer by ID or project key + number |
+| `get_session_status` | Get current session, active timers, and utilization metrics |
 | `list_projects` | List all projects with summary stats |
 | `create_project` | Create a new project |
 | `delete_project` | Permanently delete a project and all related data |
@@ -133,19 +158,14 @@ Add to your MCP settings:
 | `delete_issue` | Permanently delete an issue and all related data |
 | `add_comment` | Add a comment to an issue |
 | `search_issues` | Search issues across all projects |
-| `start_timer` | Start an agent timer on an issue |
-| `stop_timer` | Stop an active timer by ID or project key + number |
-| `get_session_status` | Get current session, active timers, and utilization metrics |
 | `get_time_entries` | Get time entries for an issue |
-| `begin_work` | Start working on an issue (starts timer, moves to in-progress) |
-| `complete_work` | Finish an issue (stops timer, adds summary, moves to done) |
 | `get_velocity` | Get velocity data for a project |
 | `get_estimation_accuracy` | Get estimation accuracy report |
 | `get_project_health` | Get project health summary |
 | `compare_by_tag` | Compare project metrics by tag group |
 | `predict_new_project` | Predict timeline for a new project based on historical data |
 
-### Available Resources
+### Resources
 
 | Resource | Description |
 |----------|-------------|
@@ -208,28 +228,6 @@ YAITracker is designed for public internet exposure with multiple layers of defe
 - **Input Validation**: Parameterized SQL queries, HTML sanitization on markdown
 - **Docker**: Non-root user, read-only filesystem, all capabilities dropped, no privilege escalation
 
-## Development
-
-```bash
-# Build and run with dev settings
-make dev
-
-# Run tests
-make test
-
-# Check for vulnerabilities
-make vulncheck
-
-# Format code
-make fmt
-
-# Lint
-make lint
-
-# Clean build artifacts
-make clean
-```
-
 ## Architecture
 
 ```
@@ -237,10 +235,27 @@ yaitracker serve    → chi Router → HTML handlers (htmx/Alpine.js UI)
                                  → JSON API (/api/v1, OAuth2)
                                  → Static assets (embedded)
 
-yaitracker mcp      → MCP Server (stdio) → tools + resources
+yaitracker mcp      → MCP Server (stdio or HTTP) → tools + resources
 ```
 
 Both commands share the same SQLite database. The entire application compiles to a single binary with all assets embedded.
+
+## Development
+
+```bash
+make dev          # Build and run with dev settings
+make test         # Run tests
+make vulncheck    # Check for vulnerabilities
+make fmt          # Format code
+make lint         # Lint
+make clean        # Clean build artifacts
+```
+
+## Contributing
+
+YAITracker is open to contributions. If you have ideas about how AI changes development workflows -- or you just want better issue tracking -- open an issue or submit a PR.
+
+This project follows [Conventional Commits](https://www.conventionalcommits.org/) and [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/) branching.
 
 ## License
 
