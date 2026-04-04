@@ -79,6 +79,13 @@ run: build
 # Quality Control
 # ──────────────────────────────────────────────────────
 
+# Pinned to .github/workflows/ci.yml (golangci-lint-action "version").
+GOLANGCI_LINT_VER := v2.11.4
+GOLANGCI_LINT     := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VER)
+
+# govulncheck loads std and deps; GOTOOLCHAIN must match go.mod (see golang.org/x/vuln docs).
+GOVULNCHECK_VER := v1.1.4
+
 ## test: run all unit tests with race detection
 test:
 	go test -v -race -count=1 -timeout=60s ./...
@@ -93,9 +100,13 @@ test/cover:
 test/integration:
 	go test -v -race -count=1 -tags=integration ./...
 
-## lint: run golangci-lint
+## lint: run golangci-lint (same binary as CI; vs origin/master when present)
 lint:
-	golangci-lint run
+	@if git rev-parse --verify origin/master >/dev/null 2>&1; then \
+		$(GOLANGCI_LINT) run --new-from-merge-base=origin/master; \
+	else \
+		$(GOLANGCI_LINT) run; \
+	fi
 
 ## fmt: format code
 fmt:
@@ -110,11 +121,11 @@ audit: test lint
 	go mod tidy -diff
 	go mod verify
 	go vet ./...
-	govulncheck ./...
+	$(MAKE) vulncheck
 
 ## vulncheck: check for known vulnerabilities
 vulncheck:
-	govulncheck ./...
+	env GOTOOLCHAIN=$$(go env GOVERSION) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VER) ./...
 
 # ──────────────────────────────────────────────────────
 # Docker
