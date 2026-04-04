@@ -596,28 +596,36 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
-
-		p, err := st.GetProjectByKey(ctx, key)
-		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
-		}
-		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
-		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
-		}
+		desc := mcp.ParseString(req, "description", "")
 
 		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
 
-		desc := mcp.ParseString(req, "description", "")
-		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
-		if err != nil {
-			return errResult(fmt.Errorf("start timer: %w", err)), nil
+		if !StrictAgentWorkflow() {
+			p, err := st.GetProjectByKey(ctx, key)
+			if err != nil {
+				return errResult(fmt.Errorf("get project: %w", err)), nil
+			}
+			issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+			if err != nil {
+				return errResult(fmt.Errorf("get issue: %w", err)), nil
+			}
+			entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
+			if err != nil {
+				return errResult(fmt.Errorf("start timer: %w", err)), nil
+			}
+			return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: agent, started: %s)",
+				key, number, entry.ID, entry.StartedAt.Format(time.RFC3339))), nil
 		}
 
-		return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: agent, started: %s)",
+		_, entry, _, err := beginAgentWork(ctx, st, userID, key, number, desc)
+		if err != nil {
+			return errResult(err), nil
+		}
+
+		return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: agent, started: %s) — same workflow as begin_work",
 			key, number, entry.ID, entry.StartedAt.Format(time.RFC3339))), nil
 	}
 }
@@ -820,55 +828,18 @@ func toolBeginWork(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
 
-		p, err := st.GetProjectByKey(ctx, key)
-		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
-		}
-		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
-		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
-		}
-
 		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
 		}
 
-		// Ensure a work session exists; create one if missing, update description if reusing.
-		sessionDesc := fmt.Sprintf("Working on %s-%d: %s", key, number, issue.Title)
-		ws, _ := st.GetActiveWorkSession(ctx, userID)
-		if ws == nil {
-			ws, err = st.CreateWorkSession(ctx, userID, sessionDesc)
-			if err != nil {
-				return errResult(fmt.Errorf("create session: %w", err)), nil
-			}
-		} else {
-			st.UpdateWorkSessionDescription(ctx, ws.ID, sessionDesc)
-		}
-
-		// Stop any active agent timers so we don't leak time on old issues.
-		activeTimers, _ := st.GetActiveTimers(ctx, userID)
-		for _, t := range activeTimers {
-			if t.ActorType == "agent" {
-				st.StopTimerByID(ctx, t.ID)
-			}
-		}
-
-		// Move issue to in_progress if not already there.
-		if issue.Status != "in_progress" {
-			if err := st.MoveIssue(ctx, issue.ID, "in_progress", 0); err != nil {
-				return errResult(fmt.Errorf("move issue: %w", err)), nil
-			}
-		}
-
-		// Start an agent timer with the issue title as description.
-		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", issue.Title)
+		issue, entry, wsID, err := beginAgentWork(ctx, st, userID, key, number, "")
 		if err != nil {
-			return errResult(fmt.Errorf("start timer: %w", err)), nil
+			return errResult(err), nil
 		}
 
 		return textResult(fmt.Sprintf("Working on %s-%d: %s\ntimer_id: %s\nsession: %s",
-			key, number, issue.Title, entry.ID, ws.ID)), nil
+			key, number, issue.Title, entry.ID, wsID)), nil
 	}
 }
 
@@ -890,6 +861,18 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 		userID, err := userFromCtx(ctx, st)
 		if err != nil {
 			return errResult(err), nil
+		}
+
+		if StrictAgentWorkflow() {
+			ok, err := activeAgentTimerOnIssue(ctx, st, userID, issue.ID)
+			if err != nil {
+				return errResult(err), nil
+			}
+			if !ok {
+				return errResult(fmt.Errorf(
+					"complete_work requires an active agent timer on this issue; call begin_work (or start_timer with strict workflow) first",
+				)), nil
+			}
 		}
 
 		// Stop active timer(s) on this issue.

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "yaitracker": {
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_MCP_BEARER_TOKEN>"
+      }
+    }
+  }
+}

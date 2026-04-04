@@ -5,7 +5,7 @@ alwaysApply: true
 
 # YAITracker Workflow
 
-The YAITracker MCP server (project key: **YAIT**) tracks all work. Use `begin_work` and `complete_work` as the primary tools.
+The YAITracker MCP server (project key: **YAIT** in this repo) tracks agent work. Use `begin_work` and `complete_work` as the primary tools. The **server** enforces that `complete_work` runs only when an active agent timer exists on the issue (unless `YAITRACKER_STRICT_AGENT_WORKFLOW` is disabled on the server). See [docs/mcp-agent-workflow.md](../docs/mcp-agent-workflow.md) for product behavior; this file is contributor guidance for **this** codebase.
 
 ## Starting Work
 
@@ -54,4 +54,4 @@ Only meaningful with >=10 completed issues. When appropriate:
 ## Git Integration
 
 - Branch names reference the issue: `feature/YAIT-N-short-description`
-- Commit body includes `Refs: YAIT-N`
+- Commit body includes `Refs: YAIT-N` or `Refs: none` (see `.githooks/commit-msg`)
