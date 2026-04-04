@@ -3,6 +3,7 @@
 .PHONY: build dev run
 .PHONY: test test/cover test/integration lint fmt tidy audit vulncheck
 .PHONY: docker docker/up docker/down
+.PHONY: deploy deploy/backup deploy/rollback
 .PHONY: changelog release release/dry
 .PHONY: clean
 
@@ -124,6 +125,42 @@ docker/up:
 ## docker/down: stop services
 docker/down:
 	docker compose down
+
+# ──────────────────────────────────────────────────────
+# Deploy (production)
+# ──────────────────────────────────────────────────────
+
+DEPLOY_ENV := deploy/.env
+DEPLOY_SH  := deploy/deploy.sh
+
+## deploy: build, transfer, and deploy to production (requires VERSION=vX.Y.Z)
+deploy:
+	@test -n "$(VERSION)" || (echo "error: VERSION is required, e.g. make deploy VERSION=v0.6.0" && exit 1)
+	@test -f $(DEPLOY_ENV) || (echo "error: $(DEPLOY_ENV) not found -- copy deploy/.env.example and fill in values" && exit 1)
+	$(DEPLOY_SH) $(VERSION)
+
+## deploy/backup: back up the production database without deploying
+deploy/backup:
+	@test -f $(DEPLOY_ENV) || (echo "error: $(DEPLOY_ENV) not found" && exit 1)
+	@set -a && . $(DEPLOY_ENV) && set +a && \
+		TIMESTAMP=$$(date -u +%Y%m%d-%H%M%S) && \
+		ssh "$$DEPLOY_HOST" "mkdir -p '$$DEPLOY_DATA_DIR/backups' && \
+			cp '$$DEPLOY_DATA_DIR/yaitracker.db' '$$DEPLOY_DATA_DIR/backups/yaitracker-$$TIMESTAMP.db' && \
+			[ -f '$$DEPLOY_DATA_DIR/yaitracker.db-wal' ] && cp '$$DEPLOY_DATA_DIR/yaitracker.db-wal' '$$DEPLOY_DATA_DIR/backups/yaitracker-$$TIMESTAMP.db-wal' || true" && \
+		echo "Backup saved as yaitracker-$$TIMESTAMP.db"
+
+## deploy/rollback: restore the most recent database backup
+deploy/rollback:
+	@test -f $(DEPLOY_ENV) || (echo "error: $(DEPLOY_ENV) not found" && exit 1)
+	@set -a && . $(DEPLOY_ENV) && set +a && \
+		LATEST=$$(ssh "$$DEPLOY_HOST" "ls -t '$$DEPLOY_DATA_DIR/backups'/yaitracker-*.db 2>/dev/null | head -1") && \
+		[ -n "$$LATEST" ] || (echo "error: no backups found" && exit 1) && \
+		echo "Restoring $$LATEST ..." && \
+		ssh "$$DEPLOY_HOST" "docker stop yaitracker 2>/dev/null || true" && \
+		ssh "$$DEPLOY_HOST" "cp '$$LATEST' '$$DEPLOY_DATA_DIR/yaitracker.db'" && \
+		ssh "$$DEPLOY_HOST" "[ -f '$${LATEST}-wal' ] && cp '$${LATEST}-wal' '$$DEPLOY_DATA_DIR/yaitracker.db-wal' || true" && \
+		ssh "$$DEPLOY_HOST" "docker start yaitracker" && \
+		echo "Rollback complete."
 
 # ──────────────────────────────────────────────────────
 # Release
