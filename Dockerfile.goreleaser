@@ -1,0 +1,15 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates tzdata && \
+    adduser -D -u 1000 yaitracker
+
+COPY yaitracker /yaitracker
+
+USER 1000:1000
+
+EXPOSE 8080
+
+VOLUME ["/data"]
+
+ENTRYPOINT ["/yaitracker"]
+CMD ["serve", "--db", "/data/yaitracker.db", "--addr", ":8080"]
