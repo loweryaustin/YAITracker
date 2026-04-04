@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Runs vet + tests before push (same spirit as CI, faster than full make audit).
+# Set GITHOOKS_SKIP=1 to bypass. Use git push --no-verify to skip hooks entirely.
+
+set -euo pipefail
+
+if [[ "${GITHOOKS_SKIP:-}" == "1" ]]; then
+  exit 0
+fi
+
+cd_to_git_root() {
+  local d
+  d="$(git rev-parse --show-toplevel)"
+  cd "$d"
+}
+
+cd_to_git_root
+
+echo "pre-push: go vet ./..."
+go vet ./...
+
+echo "pre-push: go test -race -count=1 -timeout=120s ./..."
+go test -race -count=1 -timeout=120s ./...
+
+echo "pre-push: ok"
+exit 0
