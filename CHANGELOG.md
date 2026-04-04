@@ -3,6 +3,19 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.5.0] - 2026-04-03
+
+### Features
+
+- Redesign MCP transport, auth, and workflow tools (2766fb3)
+
+  Switch from SSE to Streamable HTTP transport at `/mcp`. Add bearer token
+  authentication for caller identity. Introduce `begin_work` and `complete_work`
+  compound tools that reduce per-task ceremony from 7-8 calls to 1-2. Add
+  `delete_issue` tool. Wire `start_timer` description to database. Add
+  `actor_type` filter to `stop_timer`. Make `list_issues` concise by default.
+  Simplify workflow and code-review rules.
+
 ## [v0.4.0] - 2026-04-03
 
 ### Bug Fixes
