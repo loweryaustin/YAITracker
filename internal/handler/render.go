@@ -161,7 +161,6 @@ const baseTpl = `<!DOCTYPE html>
     <script nonce="{{.Nonce}}" src="/static/js/sortable.min.js"></script>
     <link rel="stylesheet" href="/static/css/app.css">
     <script nonce="{{.Nonce}}" src="/static/js/app.js" defer></script>
-    <style nonce="{{.Nonce}}">[x-cloak] { display: none !important; }</style>
 </head>
 <body class="bg-slate-50 text-slate-700 text-sm" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>`
 

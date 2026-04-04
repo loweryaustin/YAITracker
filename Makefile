@@ -1,4 +1,5 @@
 .PHONY: help confirm no-dirty
+.PHONY: css css/watch css/install
 .PHONY: build dev run
 .PHONY: test test/cover test/integration lint fmt tidy audit vulncheck
 .PHONY: docker docker/up docker/down
@@ -29,15 +30,37 @@ no-dirty:
 	@test -z "$$(git status --porcelain)" || (echo "error: working tree is dirty" && exit 1)
 
 # ──────────────────────────────────────────────────────
+# CSS
+# ──────────────────────────────────────────────────────
+
+TAILWIND := ./tools/tailwindcss
+CSS_IN   := static/css/input.css
+CSS_OUT  := static/css/app.css
+
+## css: build tailwind CSS (production, minified)
+css:
+	$(TAILWIND) -i $(CSS_IN) -o $(CSS_OUT) --minify
+
+## css/watch: watch and rebuild CSS on changes
+css/watch:
+	$(TAILWIND) -i $(CSS_IN) -o $(CSS_OUT) --watch
+
+## css/install: download the tailwind standalone CLI
+css/install:
+	@mkdir -p tools
+	curl -sL https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64 -o $(TAILWIND)
+	chmod +x $(TAILWIND)
+
+# ──────────────────────────────────────────────────────
 # Development
 # ──────────────────────────────────────────────────────
 
-## build: compile the binary
-build:
+## build: build CSS then compile the binary
+build: css
 	go build -ldflags="$(LDFLAGS)" -o $(BINARY) $(PKG)
 
 ## dev: build and run with dev settings
-dev: build
+dev: css build
 	YAITRACKER_SECRET=dev-secret-must-be-at-least-32-chars-long \
 	./$(BINARY) serve --db $(DB)
 

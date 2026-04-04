@@ -3,6 +3,17 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.4.0] - 2026-04-03
+
+### Bug Fixes
+
+- Add Tailwind CSS build pipeline to fix completely unstyled web UI (35317ad)
+
+  Tailwind utility classes were used across all templates but Tailwind CSS
+  was never included. Added Tailwind v4 standalone CLI build, `input.css`
+  with `@source` directives for Go handler templates, Makefile `css` targets,
+  and Dockerfile integration. Removed conflicting dark-theme custom CSS.
+
 ## [v0.3.1] - 2026-04-03
 
 ### Bug Fixes
