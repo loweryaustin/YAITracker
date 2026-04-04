@@ -1,0 +1,53 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - errname
+    - errorlint
+    - gocritic
+    - gosec
+    - nilerr
+    - nolintlint
+    - prealloc
+    - revive
+    - unconvert
+    - unparam
+    - wastedassign
+  disable:
+    - depguard
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+linters-settings:
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - hugeParam
+  gosec:
+    excludes:
+      - G104
+  revive:
+    rules:
+      - name: unexported-return
+        disabled: true
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m

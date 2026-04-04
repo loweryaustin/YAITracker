@@ -1,0 +1,62 @@
+---
+description: Error handling patterns for internal Go packages
+globs: "internal/**/*.go"
+alwaysApply: false
+---
+
+# Error Handling
+
+## Wrapping
+
+Wrap at every boundary with context:
+
+```go
+// good
+if err := st.CreateProject(ctx, p); err != nil {
+    return fmt.Errorf("create project: %w", err)
+}
+
+// bad -- no context
+if err := st.CreateProject(ctx, p); err != nil {
+    return err
+}
+```
+
+## Sentinel Errors
+
+Define per package for expected conditions:
+
+```go
+var ErrNotFound = errors.New("not found")
+var ErrConflict = errors.New("conflict")
+```
+
+Compare with `errors.Is`, never `==`:
+
+```go
+if errors.Is(err, store.ErrNotFound) { ... }
+```
+
+## Layer Responsibilities
+
+- **store**: return `ErrNotFound` for missing rows, wrap DB errors
+- **api** (JSON): map `ErrNotFound`->404, `ErrConflict`->409, default->500. Never expose raw DB errors.
+- **handler** (HTML): log the error, render user-friendly error page
+- **mcp**: use `errResult()` helper (already correct)
+
+## Never Discard I/O Errors
+
+```go
+// bad
+_ = st.UpdateIssue(ctx, issue)
+
+// good
+if err := st.UpdateIssue(ctx, issue); err != nil {
+    return fmt.Errorf("update issue: %w", err)
+}
+```
+
+## Error Messages
+
+- Lowercase, no trailing punctuation
+- Start with the operation: `"create project: %w"`, `"get issue by number: %w"`

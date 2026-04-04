@@ -1,0 +1,62 @@
+---
+description: Test-driven development workflow for Go code
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# TDD Workflow
+
+All new code follows Red -> Green -> Refactor. No code changes without corresponding tests.
+
+## Test Structure
+
+- Test files live beside code: `foo.go` -> `foo_test.go`
+- Use stdlib `testing` package (no testify)
+- `t.Helper()` on all test helper functions
+- `t.Parallel()` on all tests and subtests
+
+## Naming
+
+```
+TestFunctionName_scenario
+```
+
+Example: `TestCreateProject_duplicateKey`, `TestGetIssue_notFound`
+
+## Table-Driven Tests (default pattern)
+
+```go
+func TestCreateProject(t *testing.T) {
+    t.Parallel()
+    tests := []struct {
+        name    string
+        input   model.Project
+        wantErr bool
+    }{
+        {"valid", model.Project{Key: "FOO", Name: "Foo"}, false},
+        {"empty key", model.Project{Key: "", Name: "Foo"}, true},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            t.Parallel()
+            // test body
+        })
+    }
+}
+```
+
+## Test Helpers
+
+Use `internal/testutil` for shared setup:
+- `testutil.NewTestStore(t)` -- in-memory SQLite with migrations
+- `testutil.SeedUser(t, st)` -- create a test user
+- `testutil.SeedProject(t, st, "KEY")` -- create a test project
+
+## Integration Tests
+
+- Build tag: `//go:build integration`
+- Run separately: `make test/integration`
+
+## Race Detection
+
+Always: `go test -race` (enforced in Makefile)

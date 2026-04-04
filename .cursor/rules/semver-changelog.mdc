@@ -1,0 +1,40 @@
+---
+description: Semantic versioning and changelog generation rules
+alwaysApply: true
+---
+
+# SEMVER + Changelog
+
+## Semantic Versioning 2.0.0
+
+- MAJOR: breaking API/behavior changes
+- MINOR: new features (backward-compatible) -- triggered by `feat` commits
+- PATCH: bug fixes (backward-compatible) -- triggered by `fix` commits
+
+Current version: determined by latest git tag (`git describe --tags`).
+
+## Version Bumping
+
+- `feat` commit -> MINOR bump
+- `fix` commit -> PATCH bump
+- `BREAKING CHANGE:` footer -> MAJOR bump
+- `chore`, `refactor`, `test`, `docs` -> no version bump (included in next release)
+
+## Release Process
+
+1. Merge `develop` into `release/vX.Y.Z` branch
+2. Run `make changelog` to regenerate CHANGELOG.md via git-cliff
+3. Commit changelog: `chore(release): prepare vX.Y.Z`
+4. Merge release branch into `main`
+5. Tag: `git tag -a vX.Y.Z -m "release: vX.Y.Z"`
+6. Push tag -- CI runs GoReleaser
+
+## Changelog
+
+- Auto-generated from conventional commits via `git-cliff` (`cliff.toml`)
+- Never manually edit `CHANGELOG.md`
+- Groups: Features, Bug Fixes, Refactoring, Performance, Testing, Documentation, Miscellaneous
+
+## Binary Version
+
+Injected via ldflags at build time: `-X main.version`, `-X main.commit`, `-X main.date`

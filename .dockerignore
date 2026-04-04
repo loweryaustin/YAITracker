@@ -1,0 +1,7 @@
+.git
+*.db
+*.db-wal
+*.db-shm
+yaitracker
+.env
+.cursor

@@ -1,0 +1,27 @@
+# Binary
+yaitracker
+trackrack
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+
+# IDE
+.cursor/mcp.json
+.vscode/
+.idea/
+
+# Test / coverage
+coverage.out
+coverage.html
+
+# Release
+dist/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+---
+description: Pre-commit and code review quality checklist
+alwaysApply: true
+---
+
+# Code Review Checklist
+
+Run `make audit` before every commit. It must pass.
+
+## Code Quality
+
+- [ ] `make audit` passes (test + lint + vet + vulncheck + tidy)
+- [ ] No new `//nolint` without explanation: `//nolint:errcheck // reason`
+- [ ] Error messages: lowercase, no trailing punctuation
+- [ ] Errors wrapped with context at every boundary
+- [ ] `context.Context` propagated to all I/O operations
+- [ ] No shared mutable state without `sync.Mutex` or channels
+- [ ] SQL uses parameterized queries only
+- [ ] Slices pre-allocated when size is known: `make([]T, 0, n)`
+- [ ] No new dependencies without justification
+
+## Testing
+
+- [ ] New/changed code has corresponding `_test.go` changes
+- [ ] Tests use `t.Parallel()` and table-driven pattern
+- [ ] `go test -race` passes
+
+## YAITracker
+
+- [ ] Referenced YAIT issue moved to appropriate status via MCP
+- [ ] Time logged on the issue via `log_time`
+- [ ] Completion comment added via `add_comment`
+
+## Git
+
+- [ ] Commit follows conventional commits format
+- [ ] Commit body includes `Refs: YAIT-N`
+- [ ] One logical change per commit

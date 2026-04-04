@@ -1,0 +1,46 @@
+---
+description: Go coding conventions for YAITracker
+alwaysApply: true
+---
+
+# Go Conventions
+
+## Package Layout
+
+- `cmd/yaitracker/` -- thin CLI entrypoint (Cobra)
+- `internal/` -- all private application code (compiler-enforced)
+- Root package -- embedded assets only (embed.go)
+
+## Naming
+
+- Exported: `PascalCase`. Unexported: `camelCase`
+- JSON tags: `snake_case` (`json:"project_id"`)
+- Acronyms: `ID`, `URL`, `HTTP` (all caps), not `Id`, `Url`
+
+## Error Handling
+
+- Wrap at every boundary: `fmt.Errorf("create project: %w", err)`
+- Sentinel errors per package: `var ErrNotFound = errors.New("not found")`
+- Compare with `errors.Is`/`errors.As`, never `==`
+- Never discard errors from I/O with `_`
+
+## Documentation
+
+- Every exported type and function: `// Name does X.`
+- Package comment in one file per package: `// Package store provides ...`
+
+## Dependencies
+
+- No new deps without justification. Prefer stdlib.
+- Current direct deps: chi, goose, cobra, x/crypto, modernc/sqlite, mcp-go
+
+## SQL
+
+- Parameterized queries only (`?` placeholders)
+- Use `store.writeTx` for all mutations
+- Goose for migrations in `migrations/`
+
+## Context
+
+- `context.Context` as first parameter on all I/O functions
+- Pass `r.Context()` from HTTP handlers into store methods

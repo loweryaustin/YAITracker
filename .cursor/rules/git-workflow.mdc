@@ -1,0 +1,41 @@
+---
+description: Gitflow branching strategy and conventional commits
+alwaysApply: true
+---
+
+# Git Workflow
+
+## Gitflow Branches
+
+- `main` -- production releases, tagged with semver
+- `develop` -- integration branch, PRs merge here
+- `feature/YAIT-N-description` -- new features
+- `hotfix/YAIT-N-description` -- urgent production fixes
+- `release/vX.Y.Z` -- release preparation
+
+Never commit directly to `main` or `develop`.
+
+## Conventional Commits
+
+Format: `<type>(<scope>): <description>`
+
+**Types:** feat, fix, refactor, test, docs, chore, perf
+
+**Scopes:** store, api, handler, mcp, auth, middleware, board, deps, ci
+
+**Examples:**
+- `feat(mcp): add delete_project tool`
+- `fix(auth): prevent session fixation on login`
+- `test(store): add table-driven tests for project CRUD`
+- `chore(deps): bump modernc.org/sqlite to v1.49`
+
+**Body:** reference issue with `Refs: YAIT-N`
+
+**Breaking changes:** add `BREAKING CHANGE:` footer
+
+## Rules
+
+- One logical change per commit (atomic commits)
+- Rebase feature branches on `develop` before merge
+- Squash-merge only if the feature branch has noisy WIP commits
+- Delete feature branches after merge

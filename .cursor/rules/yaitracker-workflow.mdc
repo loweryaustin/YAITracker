@@ -1,0 +1,51 @@
+---
+description: YAITracker MCP-driven project management workflow -- use the yaitracker MCP server as the source of truth for all work
+alwaysApply: true
+---
+
+# YAITracker Workflow
+
+The YAITracker MCP server (project key: **YAIT**) is the source of truth for all project management. Use MCP tools at every stage -- not as an afterthought.
+
+## Issue Lifecycle
+
+**Before starting work:**
+- `list_issues` (project_key: YAIT, status: todo,backlog) to review the board
+- `move_issue` to `in_progress`
+- `add_comment` with a brief plan of what will be done
+
+**During work:**
+- `add_comment` to record significant decisions, blockers, or scope changes
+- `create_issue` immediately when new work is discovered (never defer) -- include type, priority, story_points, estimated_hours
+- `log_time` after completing meaningful chunks (not at the end -- as you go)
+
+**After completing work:**
+- `log_time` for any remaining unlogged time
+- `add_comment` with a completion summary (what changed, files touched, tests added)
+- `move_issue` to `done`
+- If actual time differs from estimate by >50%, `add_comment` reflecting on why
+
+## Estimation Discipline
+
+- Every issue: `story_points` (fibonacci: 1,2,3,5,8,13) + `estimated_hours`
+- Log time in real increments -- this feeds velocity analytics
+- Use `update_issue` to adjust story_points post-completion if estimate was wrong
+
+## Periodic Health Checks
+
+At session start or milestone end, review and report:
+- `get_project_health` (project_key: YAIT)
+- `get_velocity` (project_key: YAIT)
+- `get_estimation_accuracy` (project_key: YAIT)
+
+## Issue Quality
+
+- Titles: imperative mood, concise
+- Descriptions: context (why), acceptance criteria, affected interfaces (MCP/API/UI)
+- Types: bug, task, feature, improvement
+- Priorities: urgent (prod down), high (blocks work), medium (next sprint), low (backlog)
+
+## Git Integration
+
+- Branch names reference the issue: `feature/YAIT-2-project-deletion`
+- Commit body includes `Refs: YAIT-N`
