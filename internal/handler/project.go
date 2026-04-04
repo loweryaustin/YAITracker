@@ -216,7 +216,10 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		Action: "deleted_project", NewValue: project.Name, IPAddress: h.clientIP(r),
 	})
 
-	h.Store.DeleteProject(r.Context(), project.ID)
+	if err := h.Store.DeleteProject(r.Context(), project.ID); err != nil {
+		http.Error(w, "Could not delete project", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
 

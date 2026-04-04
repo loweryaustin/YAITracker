@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"yaitracker.com/loweryaustin/internal/model"
+	"yaitracker.com/loweryaustin/internal/store"
 	"yaitracker.com/loweryaustin/internal/testutil"
 )
 
@@ -141,5 +142,73 @@ func TestDeleteProject(t *testing.T) {
 	_, err := st.GetProjectByKey(ctx, "DEL")
 	if err == nil {
 		t.Error("GetProjectByKey() after delete expected error, got nil")
+	}
+}
+
+func TestDeleteProject_cascadesChildData(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+
+	p, u := testutil.SeedProject(t, st, "CASC")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	if err := st.CreateComment(ctx, &model.Comment{
+		IssueID: issue.ID, AuthorID: u.ID, Body: "test comment",
+	}); err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "")
+	if err != nil {
+		t.Fatalf("StartTimer: %v", err)
+	}
+	if _, err := st.StopTimerByID(ctx, te.ID); err != nil {
+		t.Fatalf("StopTimerByID: %v", err)
+	}
+
+	if err := st.CreateLabel(ctx, &model.Label{
+		ProjectID: p.ID, Name: "bug", Color: "#ff0000",
+	}); err != nil {
+		t.Fatalf("CreateLabel: %v", err)
+	}
+
+	if err := st.AddProjectTag(ctx, p.ID, "backend", ""); err != nil {
+		t.Fatalf("AddProjectTag: %v", err)
+	}
+
+	if err := st.DeleteProject(ctx, p.ID); err != nil {
+		t.Fatalf("DeleteProject() error = %v", err)
+	}
+
+	assertRowCount(t, st, "projects", "id = ?", p.ID, 0)
+	assertRowCount(t, st, "issues", "project_id = ?", p.ID, 0)
+	assertRowCount(t, st, "comments", "issue_id = ?", issue.ID, 0)
+	assertRowCount(t, st, "time_entries", "issue_id = ?", issue.ID, 0)
+	assertRowCount(t, st, "labels", "project_id = ?", p.ID, 0)
+	assertRowCount(t, st, "project_tags", "project_id = ?", p.ID, 0)
+	assertRowCount(t, st, "project_members", "project_id = ?", p.ID, 0)
+}
+
+func TestDeleteProject_nonExistent(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+
+	err := st.DeleteProject(ctx, "nonexistent-id")
+	if err != nil {
+		t.Errorf("DeleteProject(nonexistent) should not error, got: %v", err)
+	}
+}
+
+func assertRowCount(t *testing.T, st *store.Store, table, where, arg string, want int) {
+	t.Helper()
+	var got int
+	err := st.DB().QueryRow("SELECT COUNT(*) FROM "+table+" WHERE "+where, arg).Scan(&got)
+	if err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	if got != want {
+		t.Errorf("%s rows (where %s=%q): got %d, want %d", table, where, arg, got, want)
 	}
 }

@@ -29,6 +29,12 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("tags", mcp.Description("Comma-separated tags")),
 	), toolCreateProject(st))
 
+	s.AddTool(mcp.NewTool("delete_project",
+		mcp.WithDescription("Permanently delete a project and all its issues, comments, time entries, labels, and tags. This cannot be undone."),
+		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key to delete")),
+		mcp.WithBoolean("confirm", mcp.Required(), mcp.Description("Must be true to confirm deletion")),
+	), toolDeleteProject(st))
+
 	s.AddTool(mcp.NewTool("tag_project",
 		mcp.WithDescription("Add or remove a tag on a project"),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
@@ -229,6 +235,28 @@ func toolCreateProject(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		return textResult(fmt.Sprintf("Created project %s (key: %s, id: %s)", p.Name, p.Key, p.ID)), nil
+	}
+}
+
+func toolDeleteProject(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		key := strings.ToUpper(mcp.ParseString(req, "project_key", ""))
+		confirm := mcp.ParseBoolean(req, "confirm", false)
+
+		if !confirm {
+			return errResult(fmt.Errorf("set confirm=true to delete project %s and all its data", key)), nil
+		}
+
+		p, err := st.GetProjectByKey(ctx, key)
+		if err != nil {
+			return errResult(fmt.Errorf("project %s not found", key)), nil
+		}
+
+		if err := st.DeleteProject(ctx, p.ID); err != nil {
+			return errResult(fmt.Errorf("delete project: %w", err)), nil
+		}
+
+		return textResult(fmt.Sprintf("Deleted project %s (%s) and all associated data", key, p.Name)), nil
 	}
 }
 

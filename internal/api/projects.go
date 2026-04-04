@@ -131,7 +131,10 @@ func (a *API) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusNotFound, "not_found", "Project not found")
 		return
 	}
-	a.Store.DeleteProject(r.Context(), p.ID)
+	if err := a.Store.DeleteProject(r.Context(), p.ID); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not delete project")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
