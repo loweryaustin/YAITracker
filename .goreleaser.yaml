@@ -28,9 +28,9 @@ archives:
 
 dockers:
   - image_templates:
-      - "ghcr.io/lowery/yaitracker:{{ .Version }}"
-      - "ghcr.io/lowery/yaitracker:latest"
-    dockerfile: Dockerfile
+      - "ghcr.io/loweryaustin/yaitracker:{{ .Version }}"
+      - "ghcr.io/loweryaustin/yaitracker:latest"
+    dockerfile: Dockerfile.goreleaser
     build_flag_templates:
       - "--label=org.opencontainers.image.version={{ .Version }}"
 
