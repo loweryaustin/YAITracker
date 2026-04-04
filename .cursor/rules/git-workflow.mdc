@@ -7,13 +7,13 @@ alwaysApply: true
 
 ## Gitflow Branches
 
-- `main` -- production releases, tagged with semver
+- `master` -- production releases, tagged with semver
 - `develop` -- integration branch, PRs merge here
 - `feature/YAIT-N-description` -- new features
 - `hotfix/YAIT-N-description` -- urgent production fixes
 - `release/vX.Y.Z` -- release preparation
 
-Never commit directly to `main` or `develop`.
+Never commit directly to `master` or `develop`.
 
 ## Conventional Commits
 
