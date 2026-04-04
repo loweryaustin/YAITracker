@@ -1,6 +1,6 @@
-# Binary
-yaitracker
-trackrack
+# Binary (anchored to root so cmd/yaitracker/ is not ignored)
+/yaitracker
+/trackrack
 
 # Database
 *.db
