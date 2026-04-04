@@ -123,3 +123,65 @@ func (s *Store) EndWorkSession(ctx context.Context, userID string) (*model.WorkS
 	}
 	return &ws, nil
 }
+
+func (s *Store) ListRecentWorkSessions(ctx context.Context, userID string, limit int) ([]model.WorkSession, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, user_id, description, started_at, ended_at, duration, created_at, updated_at
+		 FROM work_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT ?`, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list recent work sessions: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []model.WorkSession
+	for rows.Next() {
+		var ws model.WorkSession
+		var desc sql.NullString
+		var endedAt sql.NullTime
+		var duration sql.NullInt64
+		if err := rows.Scan(&ws.ID, &ws.UserID, &desc, &ws.StartedAt, &endedAt, &duration,
+			&ws.CreatedAt, &ws.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if desc.Valid {
+			ws.Description = desc.String
+		}
+		ws.EndedAt = scanNullTime(endedAt)
+		if duration.Valid {
+			d := duration.Int64
+			ws.Duration = &d
+		}
+		sessions = append(sessions, ws)
+	}
+	return sessions, rows.Err()
+}
+
+// GetSessionUtilization returns the ratio of focused time (timer durations) to
+// total session duration. Returns 0 if the session has no duration yet.
+func (s *Store) GetSessionUtilization(ctx context.Context, sessionID string) (float64, error) {
+	var sessionDur sql.NullInt64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT duration FROM work_sessions WHERE id = ?`, sessionID,
+	).Scan(&sessionDur)
+	if err != nil {
+		return 0, fmt.Errorf("get session: %w", err)
+	}
+	if !sessionDur.Valid || sessionDur.Int64 == 0 {
+		return 0, nil
+	}
+
+	var timerSum sql.NullInt64
+	err = s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE session_id = ? AND duration IS NOT NULL`,
+		sessionID,
+	).Scan(&timerSum)
+	if err != nil {
+		return 0, fmt.Errorf("sum timer durations: %w", err)
+	}
+
+	focused := int64(0)
+	if timerSum.Valid {
+		focused = timerSum.Int64
+	}
+	return float64(focused) / float64(sessionDur.Int64), nil
+}

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"yaitracker.com/loweryaustin/internal/model"
 	"yaitracker.com/loweryaustin/internal/testutil"
 )
 
@@ -241,5 +242,69 @@ func TestStopOrphanedTimers(t *testing.T) {
 	}
 	if stopped.EndedAt == nil {
 		t.Error("orphaned timer should be stopped")
+	}
+}
+
+func TestGetDailySummary(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+	p, u := testutil.SeedProject(t, st, "DSUM")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	// Create a completed manual entry so duration is guaranteed non-zero.
+	now := time.Now().UTC()
+	startedAt := now.Add(-30 * time.Minute)
+	dur := int64(1800)
+	if err := st.CreateManualTimeEntry(ctx, &model.TimeEntry{
+		IssueID:   issue.ID,
+		UserID:    u.ID,
+		ActorType: "human",
+		StartedAt: startedAt,
+		EndedAt:   &now,
+		Duration:  &dur,
+	}); err != nil {
+		t.Fatalf("CreateManualTimeEntry() error = %v", err)
+	}
+
+	summary, err := st.GetDailySummary(ctx, u.ID, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("GetDailySummary() error = %v", err)
+	}
+	if summary.IssueCount != 1 {
+		t.Errorf("GetDailySummary() IssueCount = %d, want 1", summary.IssueCount)
+	}
+	if summary.TotalSecs != 1800 {
+		t.Errorf("GetDailySummary() TotalSecs = %d, want 1800", summary.TotalSecs)
+	}
+	if summary.HumanSecs != 1800 {
+		t.Errorf("GetDailySummary() HumanSecs = %d, want 1800", summary.HumanSecs)
+	}
+}
+
+func TestGetActiveTimersWithIssues(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+	p, u := testutil.SeedProject(t, st, "ATWI")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+
+	timers, err := st.GetActiveTimersWithIssues(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("GetActiveTimersWithIssues() error = %v", err)
+	}
+	if len(timers) != 1 {
+		t.Fatalf("GetActiveTimersWithIssues() returned %d, want 1", len(timers))
+	}
+	if timers[0].Issue == nil {
+		t.Fatal("GetActiveTimersWithIssues() Issue should not be nil")
+	}
+	if timers[0].Issue.ProjectKey != "ATWI" {
+		t.Errorf("GetActiveTimersWithIssues() ProjectKey = %v, want ATWI", timers[0].Issue.ProjectKey)
+	}
+	if timers[0].Issue.Title == "" {
+		t.Error("GetActiveTimersWithIssues() Issue.Title should not be empty")
 	}
 }
