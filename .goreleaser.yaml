@@ -35,8 +35,12 @@ dockers:
       - "--label=org.opencontainers.image.version={{ .Version }}"
 
 changelog:
-  use: git-cliff
   sort: asc
+  filters:
+    exclude:
+      - "^chore"
+      - "^docs"
+      - "^test"
 
 checksum:
   name_template: "checksums.txt"
