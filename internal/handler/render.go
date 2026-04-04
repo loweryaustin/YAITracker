@@ -37,6 +37,9 @@ var funcMap = template.FuncMap{
 	"hasMore":        func(total, page, perPage int) bool { return page*perPage < total },
 	"min":            func(a, b int) int { if a < b { return a }; return b },
 	"mul":            func(a, b int) int { return a * b },
+	// gt in text/template requires identical types; use gtI/gtF to avoid float64/int mismatches.
+	"gtI":            func(a, b int) bool { return a > b },
+	"gtF":            func(a, b float64) bool { return a > b },
 	"statusDot": func(status string) string {
 		switch status {
 		case "backlog":
