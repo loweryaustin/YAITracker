@@ -3,6 +3,17 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.3.0] - 2026-04-03
+
+### Features
+
+- Add `delete_project` MCP tool with cascading delete support (556c623)
+
+  Permanently deletes a project and all associated data (issues, comments,
+  time entries, labels, tags, members) via SQLite ON DELETE CASCADE.
+  Requires `confirm=true` safety guard. Also fixes unchecked errors in
+  REST API and web UI delete handlers.
+
 ## [v0.2.0] - 2026-04-03
 
 ### Features
