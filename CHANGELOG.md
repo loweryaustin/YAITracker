@@ -3,6 +3,21 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.9.1] - 2026-04-04
+
+### Bug Fixes
+
+- Unblock CI and release pipeline (3551bdb)
+
+  Anchor `.gitignore` `/yaitracker` to root so `cmd/yaitracker/` is not
+  ignored; commit `cmd/yaitracker/main.go` which was silently excluded.
+  Update CI branch triggers from `main` to `master`. Upgrade
+  golangci-lint-action to v7 with golangci-lint v2.11.4 and migrate
+  config from `linters-settings` to `linters.settings` (v2 schema).
+  Bump Go from 1.25.0 to 1.25.8 to resolve all known stdlib
+  vulnerabilities. Set lint `only-new-issues: true` pending YAIT-21
+  cleanup of 360 pre-existing errors.
+
 ## [v0.9.0] - 2026-04-04
 
 ### Features
