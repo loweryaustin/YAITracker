@@ -80,9 +80,6 @@ var issueListTpl = template.Must(template.New("issue-list").Funcs(funcMap).Parse
         {{end}}
     </div>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 
@@ -139,16 +136,19 @@ func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 }
 
 type issueDetailData struct {
-	Project    *model.Project
-	Issue      *model.Issue
-	Comments   []model.Comment
-	Activities []model.ActivityLog
+	Project     *model.Project
+	Issue       *model.Issue
+	Comments    []model.Comment
+	Activities  []model.ActivityLog
 	TimeEntries []model.TimeEntry
-	TotalTime  int64
-	Children   []model.Issue
-	Labels     []model.Label
-	AllLabels  []model.Label
-	Users      []model.User
+	TotalTime   int64
+	HumanTime   int64
+	AgentTime   int64
+	Children    []model.Issue
+	Labels      []model.Label
+	AllLabels   []model.Label
+	Users       []model.User
+	HasActive   bool
 }
 
 var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).Parse(appLayout + `
@@ -186,39 +186,65 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
         <!-- Time log -->
         <div class="bg-white rounded-lg border border-slate-200 p-4">
             <div class="flex items-center justify-between mb-3">
-                <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wide">Time Log</h2>
-                <div class="flex gap-2">
-                    <button hx-post="/time/start" hx-vals='{"issue_id":"{{$i.ID}}"}' hx-target="#timer-widget" hx-swap="innerHTML"
-                            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100">▶ Start Timer</button>
+                <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wide">Time Tracking</h2>
+                {{if .Content.HasActive}}
+                <span class="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded font-medium">Timer Running</span>
+                {{else}}
+                <button hx-post="/time/start" hx-vals='{"issue_id":"{{$i.ID}}"}' hx-target="#session-banner" hx-swap="innerHTML"
+                        class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 font-medium">▶ Start Timer</button>
+                {{end}}
+            </div>
+            {{if $i.EstimatedHours}}
+            <div class="mb-3">
+                <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                    <span>{{formatDuration .Content.TotalTime}} logged</span>
+                    <span>{{printf "%.0f" (derefFloat $i.EstimatedHours)}}h estimated</span>
+                </div>
+                {{$pct := budgetPct .Content.TotalTime (derefFloat $i.EstimatedHours)}}
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="h-2 rounded-full {{if lt $pct 80.0}}bg-emerald-500{{else if le $pct 100.0}}bg-amber-500{{else}}bg-red-500{{end}}"
+                         style="width: {{if gt $pct 100.0}}100{{else}}{{printf "%.0f" $pct}}{{end}}%"></div>
+                </div>
+            </div>
+            {{end}}
+            <div class="flex gap-4 mb-3">
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Human</span>
+                    <span class="font-mono">{{formatDuration .Content.HumanTime}}</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">Agent</span>
+                    <span class="font-mono">{{formatDuration .Content.AgentTime}}</span>
+                </div>
+                <div class="text-sm font-medium ml-auto">
+                    Total: {{formatDuration .Content.TotalTime}}
                 </div>
             </div>
             <div id="time-entries">
             {{range .Content.TimeEntries}}
             <div class="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    {{if eq .ActorType "agent"}}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
+                    {{else}}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
+                    {{end}}
                     <span>{{if .User}}{{.User.Name}}{{end}}</span>
                     <span class="text-slate-400">{{.StartedAt.Format "Jan 2"}}</span>
+                    {{if eq .Source "manual"}}
+                    <span class="text-slate-300 text-xs">(manual)</span>
+                    {{end}}
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="font-mono">{{if .Duration}}{{formatDuration (derefInt64 .Duration)}}{{else}}running...{{end}}</span>
-                    <span class="text-slate-400 text-xs">{{.Description}}</span>
+                    <span class="font-mono">{{if .Duration}}{{formatDuration (derefInt64 .Duration)}}{{else}}<span class="text-emerald-600">running...</span>{{end}}</span>
+                    {{if .Description}}<span class="text-slate-400 text-xs">{{.Description}}</span>{{end}}
                 </div>
             </div>
             {{end}}
+            {{if not .Content.TimeEntries}}
+            <p class="py-4 text-center text-slate-400 text-sm">No time logged yet.</p>
+            {{end}}
             </div>
-            <div class="mt-2 text-sm font-medium">
-                Total: {{formatDuration .Content.TotalTime}}
-                {{if $i.EstimatedHours}} / {{printf "%.0f" (derefFloat $i.EstimatedHours)}}h est{{end}}
-            </div>
-            <!-- Manual entry form -->
-            <form hx-post="/projects/{{$p.Key}}/issues/{{$i.Number}}/time" hx-target="#time-entries" hx-swap="innerHTML"
-                  class="mt-3 flex items-center gap-2 pt-3 border-t border-slate-100">
-                <input type="number" name="hours" min="0" step="0.25" placeholder="Hours" required
-                       class="w-20 px-2 py-1 border border-slate-300 rounded text-sm">
-                <input type="text" name="description" placeholder="Description"
-                       class="flex-1 px-2 py-1 border border-slate-300 rounded text-sm">
-                <button type="submit" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200 text-sm">Log</button>
-            </form>
         </div>
 
         <!-- Comments -->
@@ -341,9 +367,6 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
         </div>
     </div>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 
@@ -375,6 +398,21 @@ func (h *Handler) GetIssueDetail(w http.ResponseWriter, r *http.Request) {
 	labels, _ := h.Store.ListLabels(r.Context(), project.ID)
 	users, _ := h.Store.ListUsers(r.Context())
 
+	var humanTime, agentTime int64
+	var hasActive bool
+	for _, te := range timeEntries {
+		if te.Duration != nil {
+			if te.ActorType == "agent" {
+				agentTime += *te.Duration
+			} else {
+				humanTime += *te.Duration
+			}
+		}
+		if te.EndedAt == nil {
+			hasActive = true
+		}
+	}
+
 	pd := h.newPageData(r, fmt.Sprintf("%s-%d: %s", project.Key, issue.Number, issue.Title), issueDetailData{
 		Project:     project,
 		Issue:       issue,
@@ -382,10 +420,13 @@ func (h *Handler) GetIssueDetail(w http.ResponseWriter, r *http.Request) {
 		Activities:  activities,
 		TimeEntries: timeEntries,
 		TotalTime:   totalTime,
+		HumanTime:   humanTime,
+		AgentTime:   agentTime,
 		Children:    children,
 		Labels:      issue.Labels,
 		AllLabels:   labels,
 		Users:       users,
+		HasActive:   hasActive,
 	})
 	pd.ProjectKey = key
 	h.renderApp(w, r, "issue-detail", issueDetailTpl, pd)
@@ -468,9 +509,6 @@ var newIssueTpl = template.Must(template.New("new-issue").Funcs(funcMap).Parse(a
     </div>
 </form>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 type newIssueData struct {

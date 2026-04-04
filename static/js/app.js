@@ -1,41 +1,4 @@
 document.addEventListener('alpine:init', () => {
-  Alpine.data('timer', () => ({
-    running: false,
-    elapsed: 0,
-    interval: null,
-
-    start() {
-      this.running = true;
-      this.interval = setInterval(() => { this.elapsed++; }, 1000);
-    },
-
-    stop() {
-      this.running = false;
-      clearInterval(this.interval);
-      this.interval = null;
-    },
-
-    reset() {
-      this.stop();
-      this.elapsed = 0;
-    },
-
-    get display() {
-      const h = Math.floor(this.elapsed / 3600);
-      const m = Math.floor((this.elapsed % 3600) / 60);
-      const s = this.elapsed % 60;
-      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }
-  }));
-
-  Alpine.data('sidebar', () => ({
-    collapsed: localStorage.getItem('sidebar-collapsed') === 'true',
-    toggle() {
-      this.collapsed = !this.collapsed;
-      localStorage.setItem('sidebar-collapsed', this.collapsed);
-    }
-  }));
-
   Alpine.data('toast', () => ({
     visible: true,
     init() {
@@ -62,3 +25,11 @@ document.body.addEventListener('htmx:afterSwap', () => {
     });
   }
 });
+
+// Sync session banner state every 60s to catch external changes (agent timers, etc.)
+setInterval(() => {
+  const banner = document.getElementById('session-banner');
+  if (banner) {
+    htmx.ajax('GET', '/partials/session-banner', { target: '#session-banner', swap: 'innerHTML' });
+  }
+}, 60000);

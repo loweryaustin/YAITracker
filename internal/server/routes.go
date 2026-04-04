@@ -53,10 +53,11 @@ func (s *Server) Router() http.Handler {
 
 	r.Post("/logout", h.PostLogout)
 
-	// Project nav partial (authenticated)
+	// Partials (authenticated, no CSRF needed for GET)
 	r.Group(func(r chi.Router) {
 		r.Use(auth.SessionMiddleware(s.store))
 		r.Get("/partials/project-nav", h.GetProjectNav)
+		r.Get("/partials/session-banner", h.GetSessionBanner)
 	})
 
 	// Authenticated HTML routes
@@ -109,7 +110,12 @@ func (s *Server) Router() http.Handler {
 		r.Post("/projects/{key}/issues/{number}/time", h.PostManualTimeEntry)
 		r.Patch("/time/{id}", h.PatchTimeEntry)
 		r.Delete("/time/{id}", h.DeleteTimeEntry)
-		r.Get("/time/sheet", h.GetTimesheet)
+		r.Get("/time", h.GetTimeHub)
+		r.Get("/time/sheet", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/time", http.StatusMovedPermanently)
+		})
+		r.Post("/session/start", h.PostSessionStart)
+		r.Post("/session/end", h.PostSessionEnd)
 
 		// Analytics
 		r.Get("/projects/{key}/analytics", h.GetProjectAnalytics)

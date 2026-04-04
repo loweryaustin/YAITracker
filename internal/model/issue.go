@@ -22,10 +22,11 @@ type Issue struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 
-	Assignee *User   `json:"assignee,omitempty"`
-	Reporter *User   `json:"reporter,omitempty"`
-	Labels   []Label `json:"labels,omitempty"`
-	Project  *Project `json:"project,omitempty"`
+	Assignee   *User    `json:"assignee,omitempty"`
+	Reporter   *User    `json:"reporter,omitempty"`
+	Labels     []Label  `json:"labels,omitempty"`
+	Project    *Project `json:"project,omitempty"`
+	ProjectKey string   `json:"project_key,omitempty"` // populated by joins, not persisted
 }
 
 type IssueFilter struct {

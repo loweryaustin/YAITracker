@@ -56,9 +56,6 @@ var newProjectTpl = template.Must(template.New("new-project").Funcs(funcMap).Par
     </div>
 </form>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))
 
 func (h *Handler) GetNewProject(w http.ResponseWriter, r *http.Request) {
@@ -305,7 +302,4 @@ var projectSettingsTpl = template.Must(template.New("project-settings").Funcs(fu
                 class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium text-sm">Delete Project</button>
     </div>
 </div>
-{{end}}
-{{define "timer"}}
-<span class="text-xs text-slate-400">No timer</span>
 {{end}}`))

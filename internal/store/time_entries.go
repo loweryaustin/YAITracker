@@ -358,6 +358,80 @@ func (s *Store) DeleteTimeEntry(ctx context.Context, id string) error {
 	})
 }
 
+// DailySummary holds aggregated time data for a single day.
+type DailySummary struct {
+	TotalSecs  int64
+	HumanSecs  int64
+	AgentSecs  int64
+	IssueCount int
+}
+
+func (s *Store) GetDailySummary(ctx context.Context, userID string, date time.Time) (*DailySummary, error) {
+	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	dayEnd := dayStart.AddDate(0, 0, 1)
+
+	var total, human, agent sql.NullInt64
+	var issueCount int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(duration), 0),
+		        COALESCE(SUM(CASE WHEN actor_type = 'human' THEN duration ELSE 0 END), 0),
+		        COALESCE(SUM(CASE WHEN actor_type = 'agent' THEN duration ELSE 0 END), 0),
+		        COUNT(DISTINCT issue_id)
+		 FROM time_entries
+		 WHERE user_id = ? AND started_at >= ? AND started_at < ? AND duration IS NOT NULL`,
+		userID, dayStart, dayEnd,
+	).Scan(&total, &human, &agent, &issueCount)
+	if err != nil {
+		return nil, fmt.Errorf("get daily summary: %w", err)
+	}
+
+	return &DailySummary{
+		TotalSecs:  total.Int64,
+		HumanSecs:  human.Int64,
+		AgentSecs:  agent.Int64,
+		IssueCount: issueCount,
+	}, nil
+}
+
+func (s *Store) GetActiveTimersWithIssues(ctx context.Context, userID string) ([]model.TimeEntry, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT te.id, te.issue_id, te.user_id, te.session_id, te.actor_type,
+		        te.description, te.started_at, te.source, te.created_at, te.updated_at,
+		        i.number, i.title, i.project_id, p.key
+		 FROM time_entries te
+		 JOIN issues i ON te.issue_id = i.id
+		 JOIN projects p ON i.project_id = p.id
+		 WHERE te.user_id = ? AND te.ended_at IS NULL
+		 ORDER BY te.started_at`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get active timers with issues: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []model.TimeEntry
+	for rows.Next() {
+		var e model.TimeEntry
+		var sessionID, desc sql.NullString
+		var issueNumber int
+		var issueTitle, projectID, projectKey string
+		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType,
+			&desc, &e.StartedAt, &e.Source, &e.CreatedAt, &e.UpdatedAt,
+			&issueNumber, &issueTitle, &projectID, &projectKey); err != nil {
+			return nil, err
+		}
+		if sessionID.Valid {
+			e.SessionID = sessionID.String
+		}
+		if desc.Valid {
+			e.Description = desc.String
+		}
+		e.Issue = &model.Issue{Number: issueNumber, Title: issueTitle, ProjectID: projectID}
+		e.Issue.ProjectKey = projectKey
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
 func (s *Store) GetIssueTotalTime(ctx context.Context, issueID string) (int64, error) {
 	var total sql.NullInt64
 	err := s.db.QueryRowContext(ctx,
