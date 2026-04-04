@@ -859,12 +859,23 @@ func toolBeginWork(st *store.Store) server.ToolHandlerFunc {
 			return errResult(err), nil
 		}
 
-		// Ensure a work session exists; create one if missing.
+		// Ensure a work session exists; create one if missing, update description if reusing.
+		sessionDesc := fmt.Sprintf("Working on %s-%d: %s", key, number, issue.Title)
 		ws, _ := st.GetActiveWorkSession(ctx, userID)
 		if ws == nil {
-			ws, err = st.CreateWorkSession(ctx, userID, fmt.Sprintf("Working on %s-%d: %s", key, number, issue.Title))
+			ws, err = st.CreateWorkSession(ctx, userID, sessionDesc)
 			if err != nil {
 				return errResult(fmt.Errorf("create session: %w", err)), nil
+			}
+		} else {
+			st.UpdateWorkSessionDescription(ctx, ws.ID, sessionDesc)
+		}
+
+		// Stop any active agent timers so we don't leak time on old issues.
+		activeTimers, _ := st.GetActiveTimers(ctx, userID)
+		for _, t := range activeTimers {
+			if t.ActorType == "agent" {
+				st.StopTimerByID(ctx, t.ID)
 			}
 		}
 
@@ -875,8 +886,8 @@ func toolBeginWork(st *store.Store) server.ToolHandlerFunc {
 			}
 		}
 
-		// Start an agent timer.
-		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", "")
+		// Start an agent timer with the issue title as description.
+		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", issue.Title)
 		if err != nil {
 			return errResult(fmt.Errorf("start timer: %w", err)), nil
 		}
