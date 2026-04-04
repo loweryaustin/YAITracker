@@ -36,6 +36,29 @@
     <style>
         .gradient-hero { background: linear-gradient(135deg, #312e81 0%, #4f46e5 50%, #6366f1 100%); }
         .gradient-text { background: linear-gradient(135deg, #818cf8, #c7d2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .browser-frame { border-radius: 8px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); }
+        .browser-bar { background: #1e293b; padding: 10px 16px; display: flex; align-items: center; gap: 8px; }
+        .browser-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .browser-bar-url { background: #334155; border-radius: 4px; padding: 4px 12px; font-size: 12px; color: #94a3b8; margin-left: 8px; flex: 1; max-width: 300px; }
+
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+        @keyframes blink {
+            50% { border-color: transparent }
+        }
+        .typewriter-line {
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 2px solid #4ade80;
+            animation: typing 1.5s steps(40, end) forwards, blink 0.7s step-end infinite;
+            width: 0;
+        }
+        .typewriter-line.line-2 { animation-delay: 2s; }
+        .typewriter-line.line-3 { animation-delay: 4.5s; }
+
+        .feature-screenshot { border-radius: 8px; box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.15); border: 1px solid #e2e8f0; }
     </style>
 </head>
 <body class="bg-white text-slate-900 antialiased">
@@ -57,8 +80,8 @@
     </nav>
 
     <!-- Hero -->
-    <section class="gradient-hero pt-32 pb-20 px-6">
-        <div class="max-w-4xl mx-auto text-center">
+    <section class="gradient-hero pt-28 pb-8 px-6">
+        <div class="max-w-5xl mx-auto text-center">
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
                 Issue tracking for the<br><span class="gradient-text">AI age</span>
             </h1>
@@ -66,15 +89,28 @@
                 <strong>Your Automated Intelligence Tracker</strong> — or <em>Yet Another Issue Tracker</em>, depending on how many grey hairs you have.
             </p>
             <p class="text-base sm:text-lg text-indigo-300 max-w-2xl mx-auto mb-10">
-                A self-hosted, AI-native issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics. An alternative to Jira and Linear for developers who work alongside AI agents.
+                A self-hosted, AI-native issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics.
             </p>
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
                 <a href="#get-started" class="px-8 py-3 bg-white text-brand-700 rounded-lg font-semibold hover:bg-indigo-50 transition shadow-lg">
                     Get Started
                 </a>
                 <a href="https://github.com/loweryaustin/YAITracker" class="px-8 py-3 border-2 border-indigo-300 text-white rounded-lg font-semibold hover:bg-white/10 transition">
                     View on GitHub
                 </a>
+            </div>
+        </div>
+
+        <!-- Hero Screenshot -->
+        <div class="max-w-5xl mx-auto">
+            <div class="browser-frame">
+                <div class="browser-bar">
+                    <div class="browser-dot" style="background:#ef4444"></div>
+                    <div class="browser-dot" style="background:#eab308"></div>
+                    <div class="browser-dot" style="background:#22c55e"></div>
+                    <div class="browser-bar-url">localhost:8080</div>
+                </div>
+                <img src="screenshots/dashboard.png" alt="YAITracker Dashboard" class="w-full block">
             </div>
         </div>
     </section>
@@ -91,10 +127,13 @@
     <section class="py-20 px-6">
         <div class="max-w-4xl mx-auto">
             <h2 class="text-3xl font-bold text-center mb-4">Why YAITracker?</h2>
-            <p class="text-lg text-slate-600 text-center max-w-3xl mx-auto mb-16">
+            <p class="text-lg text-slate-600 text-center max-w-3xl mx-auto mb-6">
                 Traditional issue trackers were built for a world where humans write all the code.
                 AI coding tools like Cursor, Copilot, and Claude have fundamentally changed development velocity,
                 but project management hasn't caught up.
+            </p>
+            <p class="text-base text-slate-500 text-center max-w-3xl mx-auto mb-16">
+                The most effective developers in the AI age aren't just using one agent — they're orchestrating multiple agents in parallel, sometimes across multiple projects at once. The right tooling makes that difference easier to see, measure, and act on.
             </p>
 
             <div class="grid md:grid-cols-2 gap-10">
@@ -106,7 +145,7 @@
                     <p class="text-slate-600">
                         Keeping issues updated with good notes, accurate time logs, and useful documentation was always valuable
                         but painfully time-consuming. With MCP integration, your AI assistant handles that overhead at the speed
-                        of the conversation — so you get more consistent, more detailed tracking with almost zero manual effort.
+                        of the conversation — more consistent, more detailed tracking with almost zero manual effort.
                     </p>
                 </div>
 
@@ -149,24 +188,145 @@
         </div>
     </section>
 
-    <!-- Features -->
+    <!-- Feature: Time Tracking -->
     <section id="features" class="py-20 px-6 bg-slate-50">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-16">Features</h2>
+        <div class="max-w-5xl mx-auto">
+            <div class="grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="text-sm font-semibold text-brand-600 uppercase tracking-wide mb-2">Time Tracking</div>
+                    <h2 class="text-3xl font-bold mb-4">See where the time actually goes</h2>
+                    <p class="text-slate-600 mb-4">
+                        Real-time start/stop timers for both human and AI work. Clock in and out of work sessions,
+                        see your daily totals split by human vs. agent time, and review session history — all in one place.
+                    </p>
+                    <ul class="space-y-2 text-sm text-slate-600">
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Human clock-in/out via the web UI</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Agent timers managed automatically via MCP</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Daily summary with human/agent split</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Weekly timesheet with per-issue breakdown</li>
+                    </ul>
+                </div>
+                <div>
+                    <img src="screenshots/time.png" alt="YAITracker Time Tracking" class="feature-screenshot w-full">
+                </div>
+            </div>
+        </div>
+    </section>
 
+    <!-- Feature: Issue Detail -->
+    <section class="py-20 px-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid md:grid-cols-2 gap-12 items-center">
+                <div class="order-2 md:order-1">
+                    <img src="screenshots/issue.png" alt="YAITracker Issue Detail" class="feature-screenshot w-full">
+                </div>
+                <div class="order-1 md:order-2">
+                    <div class="text-sm font-semibold text-brand-600 uppercase tracking-wide mb-2">Issue Tracking</div>
+                    <h2 class="text-3xl font-bold mb-4">Everything about an issue, in one place</h2>
+                    <p class="text-slate-600 mb-4">
+                        Full issue detail with description, time tracking breakdown (human vs. agent),
+                        budget progress bar, activity log, and comments — including AI-generated summaries from completed work.
+                    </p>
+                    <ul class="space-y-2 text-sm text-slate-600">
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Types, priorities, labels, story points, estimates</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Time budget bar — logged vs. estimated</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> Human/agent time attribution per entry</li>
+                        <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span> AI completion summaries logged as comments</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Feature: Kanban Board -->
+    <section class="py-20 px-6 bg-slate-50">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid md:grid-cols-2 gap-12 items-center">
+                <div>
+                    <div class="text-sm font-semibold text-brand-600 uppercase tracking-wide mb-2">Kanban Board</div>
+                    <h2 class="text-3xl font-bold mb-4">Drag, drop, and stay in flow</h2>
+                    <p class="text-slate-600 mb-4">
+                        A clean drag-and-drop board with real-time updates via htmx. Issues move through
+                        backlog, todo, in progress, in review, and done — either manually in the UI or automatically
+                        when your AI agent calls <code class="text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded text-sm">begin_work</code>
+                        and <code class="text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded text-sm">complete_work</code>.
+                    </p>
+                </div>
+                <div>
+                    <img src="screenshots/board.png" alt="YAITracker Kanban Board" class="feature-screenshot w-full">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MCP Section -->
+    <section id="mcp" class="py-20 px-6">
+        <div class="max-w-5xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-4">First-Class MCP Integration</h2>
+            <p class="text-lg text-slate-600 text-center max-w-2xl mx-auto mb-12">
+                Your AI assistant becomes a full participant in project management.
+                Two commands cover the most common workflow.
+            </p>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-slate-900 rounded-xl p-6 font-mono text-sm overflow-hidden">
+                    <div class="text-slate-500 mb-3">// AI agent starts working on an issue</div>
+                    <div class="flex items-start gap-2 mb-4">
+                        <span class="text-emerald-400 select-none">→</span>
+                        <div>
+                            <span class="text-emerald-400">begin_work</span>
+                            <span class="text-slate-300"> YAIT-42</span>
+                            <div class="text-slate-500 mt-1 text-xs">Starts agent timer, moves issue to in_progress</div>
+                        </div>
+                    </div>
+                    <div class="text-slate-600 mb-4 ml-5">... agent writes code, runs tests ...</div>
+                    <div class="flex items-start gap-2 mb-4">
+                        <span class="text-emerald-400 select-none">→</span>
+                        <div>
+                            <span class="text-emerald-400">complete_work</span>
+                            <span class="text-slate-300"> YAIT-42</span>
+                            <div class="text-slate-500 mt-1 text-xs">Stops timer, adds summary comment, moves to done</div>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-700 pt-3 mt-3 text-slate-400 text-xs">
+                        Completed YAIT-42: Add user settings page<br>
+                        Time logged: 4.2 minutes
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-lg mb-4">25 tools available</h3>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-start gap-3">
+                            <span class="w-5 h-5 rounded bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">→</span>
+                            <div><span class="font-medium">Workflow</span> — begin_work, complete_work, start/stop timers</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-5 h-5 rounded bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">◉</span>
+                            <div><span class="font-medium">Issues</span> — CRUD, search, board management, comments</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-5 h-5 rounded bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">◈</span>
+                            <div><span class="font-medium">Analytics</span> — velocity, estimation accuracy, project health, cross-project comparison</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="w-5 h-5 rounded bg-brand-100 text-brand-600 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">◇</span>
+                            <div><span class="font-medium">Resources</span> — 5 MCP resource endpoints for rich AI context</div>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-6">
+                        Works with <strong>Cursor</strong>, <strong>Claude Desktop</strong>, and any MCP-compatible client via stdio or HTTP transport.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- More Features Grid -->
+    <section class="py-20 px-6 bg-slate-50">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">And more</h2>
             <div class="grid md:grid-cols-3 gap-8">
-                <div class="bg-white rounded-xl p-6 border border-slate-200">
-                    <h3 class="font-semibold mb-2">Issue Tracking</h3>
-                    <p class="text-sm text-slate-600">Jira-style issues with types, priorities, labels, epics, and parent/child hierarchy.</p>
-                </div>
-                <div class="bg-white rounded-xl p-6 border border-slate-200">
-                    <h3 class="font-semibold mb-2">Kanban Board</h3>
-                    <p class="text-sm text-slate-600">Drag-and-drop board with real-time updates via htmx.</p>
-                </div>
-                <div class="bg-white rounded-xl p-6 border border-slate-200">
-                    <h3 class="font-semibold mb-2">Time Tracking</h3>
-                    <p class="text-sm text-slate-600">Real-time start/stop timers, work sessions, human vs. agent time split.</p>
-                </div>
                 <div class="bg-white rounded-xl p-6 border border-slate-200">
                     <h3 class="font-semibold mb-2">Velocity Analytics</h3>
                     <p class="text-sm text-slate-600">Sprint velocity, cycle time, estimation accuracy, and project health.</p>
@@ -188,74 +348,15 @@
                     <p class="text-sm text-slate-600">Server-rendered HTML with htmx and Alpine.js. No SPA framework needed.</p>
                 </div>
                 <div class="bg-white rounded-xl p-6 border border-slate-200">
-                    <h3 class="font-semibold mb-2">Simple Deployment</h3>
-                    <p class="text-sm text-slate-600">Single binary with embedded assets. SQLite for zero-config use today; more backends planned.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- MCP Section -->
-    <section id="mcp" class="py-20 px-6">
-        <div class="max-w-4xl mx-auto">
-            <h2 class="text-3xl font-bold text-center mb-4">First-Class MCP Integration</h2>
-            <p class="text-lg text-slate-600 text-center max-w-2xl mx-auto mb-12">
-                Your AI assistant becomes a full participant in project management.
-                Connect any MCP-compatible client and let it manage issues, track time, and query analytics.
-            </p>
-
-            <div class="grid md:grid-cols-2 gap-8">
-                <div>
-                    <h3 class="font-semibold text-lg mb-4">Workflow Tools</h3>
-                    <p class="text-sm text-slate-600 mb-4">Two commands cover the most common workflow:</p>
-                    <div class="bg-slate-900 rounded-xl p-5 font-mono text-sm text-slate-300">
-                        <div class="text-green-400 mb-1">→ begin_work YAIT-42</div>
-                        <div class="text-slate-500 mb-3">  Starts timer, moves to in-progress</div>
-                        <div class="text-slate-500 mb-1">  ... agent does the work ...</div>
-                        <div class="text-slate-500 mb-3"></div>
-                        <div class="text-green-400 mb-1">→ complete_work YAIT-42</div>
-                        <div class="text-slate-500">  Stops timer, adds summary, moves to done</div>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="font-semibold text-lg mb-4">25 Tools Available</h3>
-                    <div class="space-y-2 text-sm">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">Issue CRUD, search, board management</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">Start/stop agent timers, session status</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">Velocity, estimation accuracy, project health</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">Cross-project comparison by tag</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">Timeline prediction for new projects</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
-                            <span class="text-slate-700">5 resource endpoints for context</span>
-                        </div>
-                    </div>
-                    <p class="text-sm text-slate-500 mt-4">
-                        Works with Cursor, Claude Desktop, and any MCP-compatible client via stdio or HTTP transport.
-                    </p>
+                    <h3 class="font-semibold mb-2">Security Built In</h3>
+                    <p class="text-sm text-slate-600">CSRF, CSP, rate limiting, bcrypt, OAuth2, read-only Docker container.</p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Get Started -->
-    <section id="get-started" class="py-20 px-6 bg-slate-50">
+    <section id="get-started" class="py-20 px-6">
         <div class="max-w-3xl mx-auto">
             <h2 class="text-3xl font-bold text-center mb-12">Get Started</h2>
 
@@ -293,24 +394,6 @@
                     Full documentation on GitHub →
                 </a>
             </div>
-        </div>
-    </section>
-
-    <!-- Architecture -->
-    <section class="py-20 px-6">
-        <div class="max-w-3xl mx-auto text-center">
-            <h2 class="text-3xl font-bold mb-8">Architecture</h2>
-            <div class="bg-slate-900 rounded-xl p-8 font-mono text-sm text-slate-300 text-left inline-block mx-auto">
-                <div>yaitracker serve</div>
-                <div class="text-slate-500 ml-4">→ chi Router → HTML handlers (htmx/Alpine.js)</div>
-                <div class="text-slate-500 ml-4">            → JSON API (/api/v1, OAuth2)</div>
-                <div class="text-slate-500 ml-4">            → Static assets (embedded)</div>
-                <div class="mt-4">yaitracker mcp</div>
-                <div class="text-slate-500 ml-4">→ MCP Server (stdio or HTTP) → tools + resources</div>
-            </div>
-            <p class="text-slate-600 mt-6">
-                Both commands share the same SQLite database. The entire application compiles to a single binary with all assets embedded.
-            </p>
         </div>
     </section>
 
