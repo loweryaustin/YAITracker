@@ -61,6 +61,15 @@ make audit
 - PR **title** should follow conventional commits (e.g. `feat(mcp): add export tool`) — CI enforces this.
 - Keep changes focused; one logical change per PR when possible.
 
+## CI checks on pull requests
+
+On PRs targeting `master` or `develop`, GitHub Actions runs:
+
+- **Semantic PR title** — the PR title must match conventional commits (e.g. `feat(mcp): add tool` or `fix: handle edge case`).
+- **Conventional commit subjects** — each non-merge commit in the PR must use a conventional first line (`feat`, `fix`, `chore`, …).
+
+Workflows: `.github/workflows/ci.yml` (tests, lint, etc.) and `.github/workflows/pr-conventions.yml` (title + commits).
+
 ## Merges and history
 
 - Prefer **merge commits** when integrating branches so Gitflow “bubbles” stay visible, unless the branch is noisy and a squash merge was agreed.
