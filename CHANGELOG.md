@@ -3,6 +3,17 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.3.1] - 2026-04-03
+
+### Bug Fixes
+
+- Fix CSP blocking Alpine.js and inline scripts in web UI (d67b20a)
+
+  Generate per-request cryptographic nonces for inline `<script>` and
+  `<style>` tags. Add `'unsafe-eval'` to `script-src` for Alpine.js
+  expression evaluation. All interactive UI elements (dropdowns, board
+  drag-and-drop, toasts, sidebar) now work correctly.
+
 ## [v0.3.0] - 2026-04-03
 
 ### Features
