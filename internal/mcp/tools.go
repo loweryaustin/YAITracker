@@ -115,23 +115,12 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
 	), toolSearchIssues(st))
 
-	// Work session tools
-	s.AddTool(mcp.NewTool("start_session",
-		mcp.WithDescription("Start a human work session (clock in). Only one active session per user."),
-		mcp.WithString("description", mcp.Description("Session description (e.g. 'morning dev block')")),
-	), toolStartSession(st))
-
-	s.AddTool(mcp.NewTool("end_session",
-		mcp.WithDescription("End the active work session (clock out). Auto-stops any running human timer. Returns session summary with duration."),
-	), toolEndSession(st))
-
-	// Timer tools
+	// Timer tools (human sessions/timers are UI-only; MCP is agent-only)
 	s.AddTool(mcp.NewTool("start_timer",
-		mcp.WithDescription("Start a real-time timer on an issue. Returns timer_id for later stop_timer call. Human timers require an active session and auto-stop previous human timer. Agent timers can run concurrently on different issues."),
+		mcp.WithDescription("Start an agent timer on an issue. Returns timer_id for later stop_timer call. Prefer begin_work for typical workflows."),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
 		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
 		mcp.WithString("description", mcp.Description("What will be worked on")),
-		mcp.WithString("actor_type", mcp.Description("'human' or 'agent' (default: agent)")),
 	), toolStartTimer(st))
 
 	s.AddTool(mcp.NewTool("stop_timer",
@@ -607,11 +596,6 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
-		actorType := mcp.ParseString(req, "actor_type", "agent")
-
-		if actorType != "human" && actorType != "agent" {
-			return errResult(fmt.Errorf("actor_type must be 'human' or 'agent', got '%s'", actorType)), nil
-		}
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
@@ -627,23 +611,14 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 			return errResult(err), nil
 		}
 
-		sessionID := ""
-		if actorType == "human" {
-			ws, _ := st.GetActiveWorkSession(ctx, userID)
-			if ws == nil {
-				return errResult(fmt.Errorf("no active work session -- call start_session first")), nil
-			}
-			sessionID = ws.ID
-		}
-
 		desc := mcp.ParseString(req, "description", "")
-		entry, err := st.StartTimer(ctx, issue.ID, userID, actorType, sessionID, desc)
+		entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
 		if err != nil {
 			return errResult(fmt.Errorf("start timer: %w", err)), nil
 		}
 
-		return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: %s, started: %s)",
-			key, number, entry.ID, actorType, entry.StartedAt.Format(time.RFC3339))), nil
+		return textResult(fmt.Sprintf("Timer started on %s-%d (timer_id: %s, actor: agent, started: %s)",
+			key, number, entry.ID, entry.StartedAt.Format(time.RFC3339))), nil
 	}
 }
 

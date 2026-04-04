@@ -3,6 +3,18 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.8.2] - 2026-04-04
+
+### Bug Fixes
+
+- Improve active timer UI readability with full issue key and title (f4faeef)
+
+  Redesign active timer cards on Time page to a two-line layout showing the
+  full issue key and elapsed time on top, with the issue title below. Session
+  banner now shows individual agent issue keys (e.g. YAIT-14) instead of a
+  generic count. Remove `start_session` and `end_session` from MCP tools;
+  human time tracking is now UI-only. Force `start_timer` to agent actor type.
+
 ## [v0.8.1] - 2026-04-04
 
 ### Bug Fixes
