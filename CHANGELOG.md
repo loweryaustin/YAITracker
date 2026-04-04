@@ -3,6 +3,17 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.8.1] - 2026-04-04
+
+### Bug Fixes
+
+- Stop previous agent timers in begin_work and update session description (3b123d9)
+
+  `begin_work` now stops any running agent timers before starting a new
+  one, preventing time leaking on old issues. Reusing an existing session
+  updates its description to reflect the current issue. Timer description
+  is set to the issue title for better UI display.
+
 ## [v0.8.0] - 2026-04-04
 
 ### Features
