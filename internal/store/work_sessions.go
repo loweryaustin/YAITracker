@@ -63,6 +63,13 @@ func (s *Store) GetActiveWorkSession(ctx context.Context, userID string) (*model
 	return &ws, nil
 }
 
+func (s *Store) UpdateWorkSessionDescription(ctx context.Context, sessionID, description string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE work_sessions SET description = ?, updated_at = ? WHERE id = ?`,
+		description, time.Now().UTC(), sessionID)
+	return err
+}
+
 func (s *Store) EndWorkSession(ctx context.Context, userID string) (*model.WorkSession, error) {
 	var ws model.WorkSession
 	err := s.writeTx(ctx, func(tx *sql.Tx) error {
