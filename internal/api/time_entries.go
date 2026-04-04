@@ -32,7 +32,7 @@ func (a *API) StartTimer(w http.ResponseWriter, r *http.Request) {
 		sessionID = ws.ID
 	}
 
-	entry, err := a.Store.StartTimer(r.Context(), req.IssueID, user.ID, "human", sessionID)
+	entry, err := a.Store.StartTimer(r.Context(), req.IssueID, user.ID, "human", sessionID, "")
 	if err != nil {
 		a.jsonError(w, http.StatusConflict, "conflict", err.Error())
 		return

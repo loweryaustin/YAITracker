@@ -185,25 +185,20 @@ func (s *Server) Router() http.Handler {
 		})
 	})
 
-	// MCP over SSE -- mounted outside chi's middleware stack so that the
-	// Timeout, BodyLimit, and CSRF middleware don't interfere with the
-	// long-lived SSE connections.
+	// MCP over Streamable HTTP -- mounted outside chi's middleware stack
+	// so that Timeout, BodyLimit, and CSRF middleware don't interfere
+	// with long-lived streaming connections.
 	if s.mcpServer != nil {
-		sseServer := mcpgo.NewSSEServer(s.mcpServer,
-			mcpgo.WithKeepAlive(true),
-			mcpgo.WithKeepAliveInterval(30*time.Second),
+		mcpTransport := mcpgo.NewStreamableHTTPServer(s.mcpServer,
+			mcpgo.WithHTTPContextFunc(s.mcpContextFunc()),
 		)
-		sseHandler := sseServer.SSEHandler()
-		msgHandler := sseServer.MessageHandler()
+
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			switch req.URL.Path {
-			case "/sse":
-				sseHandler.ServeHTTP(w, req)
-			case "/message":
-				msgHandler.ServeHTTP(w, req)
-			default:
-				r.ServeHTTP(w, req)
+			if req.URL.Path == "/mcp" {
+				mcpTransport.ServeHTTP(w, req)
+				return
 			}
+			r.ServeHTTP(w, req)
 		})
 	}
 

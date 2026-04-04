@@ -1,63 +1,48 @@
 ---
-description: YAITracker MCP-driven project management workflow -- use the yaitracker MCP server as the source of truth for all work
+description: YAITracker MCP-driven project management workflow
 alwaysApply: true
 ---
 
 # YAITracker Workflow
 
-The YAITracker MCP server (project key: **YAIT**) is the source of truth for all project management. Use MCP tools at every stage -- not as an afterthought.
+The YAITracker MCP server (project key: **YAIT**) tracks all work. Use `begin_work` and `complete_work` as the primary tools.
 
-## Work Sessions
+## Starting Work
 
-A work session represents the human's time at their desk. It captures total wall-clock time including overhead between issues.
+```
+begin_work(project_key: "YAIT", number: <N>)
+```
 
-- `start_session` at the beginning of every work period (description: what the session is for)
-- `end_session` when the human is done working -- this auto-stops any running human timer
-- `get_session_status` at natural breakpoints to report utilization to the human
+This single call: ensures a work session exists, moves the issue to `in_progress`, and starts an agent timer. Returns the `timer_id`.
 
-## Time Tracking
+## Finishing Work
 
-Time is tracked via real-time start/stop events only. Never fabricate durations.
+```
+complete_work(project_key: "YAIT", number: <N>, summary: "<what changed>")
+```
 
-- `start_timer` (project_key, number, actor_type) starts a real-time clock on an issue
-  - `actor_type` defaults to `"agent"` -- use this for autonomous AI work
-  - `actor_type: "human"` requires an active work session and auto-stops the previous human timer
-- `stop_timer` (timer_id or project_key+number) stops the timer and records actual duration
-- Multiple agent timers can run concurrently on different issues
-- Only one human timer can be active at a time
+This single call: stops the timer, adds a completion comment, and moves the issue to `done`.
 
-## Issue Lifecycle
+## During Work
 
-**Before starting work:**
-- `list_issues` (project_key: YAIT, status: todo,backlog) to review the board
-- `move_issue` to `in_progress`
-- `add_comment` with a brief plan of what will be done
-- `start_timer` on the issue being worked on
-
-**During work:**
-- `add_comment` to record significant decisions, blockers, or scope changes
+- `add_comment` only for significant decisions, blockers, or scope changes -- not routine progress
 - `create_issue` immediately when new work is discovered (never defer) -- include type, priority, story_points, estimated_hours
-- If switching issues, `start_timer` on the new issue (previous human timer auto-stops)
+- If switching issues, call `begin_work` on the new issue
 
-**After completing work:**
-- `stop_timer` on the issue
-- `add_comment` with a completion summary (what changed, files touched, tests added)
-- `move_issue` to `done`
-- If actual time differs from estimate by >50%, `add_comment` reflecting on why
+## Session Management
 
-## Estimation Discipline
+- `begin_work` auto-creates a session if none is active -- explicit `start_session` is only needed for sessions not tied to a specific issue
+- `end_session` when the human is done for the day (auto-stops running timers)
+
+## Estimation
 
 - Every issue: `story_points` (fibonacci: 1,2,3,5,8,13) + `estimated_hours`
-- Timer durations feed velocity analytics automatically
-- Use `update_issue` to adjust story_points post-completion if estimate was wrong
+- If actual time exceeds estimate by >2x, `add_comment` reflecting on why
 
-## Periodic Health Checks
+## Health Checks
 
-At session start or milestone end, review and report:
-- `get_project_health` (project_key: YAIT)
-- `get_velocity` (project_key: YAIT)
-- `get_estimation_accuracy` (project_key: YAIT)
-- `get_session_status` for current utilization
+Only meaningful with >=10 completed issues. When appropriate:
+- `get_project_health` / `get_velocity` / `get_estimation_accuracy`
 
 ## Issue Quality
 
@@ -68,5 +53,5 @@ At session start or milestone end, review and report:
 
 ## Git Integration
 
-- Branch names reference the issue: `feature/YAIT-2-project-deletion`
+- Branch names reference the issue: `feature/YAIT-N-short-description`
 - Commit body includes `Refs: YAIT-N`

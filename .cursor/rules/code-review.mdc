@@ -27,9 +27,8 @@ Run `make audit` before every commit. It must pass.
 
 ## YAITracker
 
-- [ ] Referenced YAIT issue moved to appropriate status via MCP
-- [ ] Timer started/stopped on the issue via `start_timer`/`stop_timer`
-- [ ] Completion comment added via `add_comment`
+- [ ] `begin_work` called at start, `complete_work` called at end
+- [ ] Completion summary describes what changed, files touched, tests added
 
 ## Git
 

@@ -9,21 +9,22 @@ import (
 	"yaitracker.com/loweryaustin/internal/model"
 )
 
-func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sessionID string) (*model.TimeEntry, error) {
+func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sessionID, description string) (*model.TimeEntry, error) {
 	if actorType == "human" && sessionID == "" {
 		return nil, fmt.Errorf("human timer requires an active work session")
 	}
 
 	entry := &model.TimeEntry{
-		ID:        NewID(),
-		IssueID:   issueID,
-		UserID:    userID,
-		ActorType: actorType,
-		SessionID: sessionID,
-		StartedAt: time.Now().UTC(),
-		Source:    "timer",
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		ID:          NewID(),
+		IssueID:     issueID,
+		UserID:      userID,
+		ActorType:   actorType,
+		SessionID:   sessionID,
+		Description: description,
+		StartedAt:   time.Now().UTC(),
+		Source:      "timer",
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
 
 	err := s.writeTx(ctx, func(tx *sql.Tx) error {
@@ -68,11 +69,16 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 			sessID = entry.SessionID
 		}
 
+		var desc interface{}
+		if entry.Description != "" {
+			desc = entry.Description
+		}
+
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO time_entries (id, issue_id, user_id, session_id, actor_type, started_at, source, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO time_entries (id, issue_id, user_id, session_id, actor_type, description, started_at, source, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			entry.ID, entry.IssueID, entry.UserID,
-			sessID, entry.ActorType,
+			sessID, entry.ActorType, desc,
 			entry.StartedAt, entry.Source,
 			entry.CreatedAt, entry.UpdatedAt,
 		)

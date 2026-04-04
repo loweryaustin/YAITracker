@@ -36,7 +36,7 @@ func (h *Handler) PostStartTimer(w http.ResponseWriter, r *http.Request) {
 		sessionID = ws.ID
 	}
 
-	entry, err := h.Store.StartTimer(r.Context(), issueID, user.ID, "human", sessionID)
+	entry, err := h.Store.StartTimer(r.Context(), issueID, user.ID, "human", sessionID, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
