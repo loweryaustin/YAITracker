@@ -20,13 +20,13 @@ func TestProjectAnalyticsTemplateRendersWithFloatBudget(t *testing.T) {
 		Content: projectAnalyticsData{
 			Project: &model.Project{Key: "YAIT", Name: "Test"},
 			Health: &model.ProjectHealth{
-				Status:            "on_track",
-				ProgressPercent:   94,
-				BudgetUsed:        10.5,
-				BudgetTotal:       40.0,
-				AvgVelocity:       3.0,
-				VelocityTrend:     "stable",
-				DaysRemaining:     5,
+				Status:          "on_track",
+				ProgressPercent: 94,
+				BudgetUsed:      10.5,
+				BudgetTotal:     40.0,
+				AvgVelocity:     3.0,
+				VelocityTrend:   "stable",
+				DaysRemaining:   5,
 			},
 			Velocity: &model.VelocityReport{
 				Points: []model.VelocityPoint{
