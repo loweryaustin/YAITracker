@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAITracker — AI-Native Issue Tracker with MCP Integration</title>
+    <meta name="description" content="A self-hosted issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics. An alternative to Jira and Linear for developers who work alongside AI agents.">
+    <meta name="keywords" content="issue tracker, MCP, model context protocol, AI tools, time tracking, project management, self-hosted, Cursor, AI agent, productivity, velocity analytics">
+
+    <meta property="og:title" content="YAITracker — AI-Native Issue Tracker">
+    <meta property="og:description" content="Self-hosted issue tracking with MCP integration, human/agent time tracking, and velocity analytics for AI-assisted development.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://yaitracker.com">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="YAITracker — AI-Native Issue Tracker">
+    <meta name="twitter:description" content="Self-hosted issue tracking with MCP integration, human/agent time tracking, and velocity analytics for AI-assisted development.">
+
+    <link rel="canonical" href="https://yaitracker.com">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwindcss.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+                            400: '#818cf8', 500: '#6366f1', 600: '#4f46e5',
+                            700: '#4338ca', 800: '#3730a3', 900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-hero { background: linear-gradient(135deg, #312e81 0%, #4f46e5 50%, #6366f1 100%); }
+        .gradient-text { background: linear-gradient(135deg, #818cf8, #c7d2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    </style>
+</head>
+<body class="bg-white text-slate-900 antialiased">
+
+    <!-- Nav -->
+    <nav class="fixed top-0 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 z-50">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <a href="/" class="text-xl font-bold text-brand-600">YAITracker</a>
+            <div class="flex items-center gap-6">
+                <a href="#features" class="text-sm text-slate-600 hover:text-brand-600 hidden sm:inline">Features</a>
+                <a href="#mcp" class="text-sm text-slate-600 hover:text-brand-600 hidden sm:inline">MCP</a>
+                <a href="#get-started" class="text-sm text-slate-600 hover:text-brand-600 hidden sm:inline">Get Started</a>
+                <a href="https://github.com/loweryaustin/YAITracker" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="gradient-hero pt-32 pb-20 px-6">
+        <div class="max-w-4xl mx-auto text-center">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
+                Issue tracking for the<br><span class="gradient-text">AI age</span>
+            </h1>
+            <p class="text-lg sm:text-xl text-indigo-200 max-w-2xl mx-auto mb-4">
+                <strong>Your Automated Intelligence Tracker</strong> — or <em>Yet Another Issue Tracker</em>, depending on how many grey hairs you have.
+            </p>
+            <p class="text-base sm:text-lg text-indigo-300 max-w-2xl mx-auto mb-10">
+                A self-hosted, AI-native issue tracker with built-in MCP integration, human/agent time tracking, and velocity analytics. An alternative to Jira and Linear for developers who work alongside AI agents.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#get-started" class="px-8 py-3 bg-white text-brand-700 rounded-lg font-semibold hover:bg-indigo-50 transition shadow-lg">
+                    Get Started
+                </a>
+                <a href="https://github.com/loweryaustin/YAITracker" class="px-8 py-3 border-2 border-indigo-300 text-white rounded-lg font-semibold hover:bg-white/10 transition">
+                    View on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Alpha Notice -->
+    <section class="bg-amber-50 border-b border-amber-200 px-6 py-4">
+        <div class="max-w-4xl mx-auto text-center text-sm text-amber-800">
+            <strong>Alpha Software</strong> — YAITracker is under active development. Features are missing, some things are broken, and the API will change.
+            I'm dogfooding this project as I build it. Feedback and ideas are very welcome.
+        </div>
+    </section>
+
+    <!-- Why Section -->
+    <section class="py-20 px-6">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-4">Why YAITracker?</h2>
+            <p class="text-lg text-slate-600 text-center max-w-3xl mx-auto mb-16">
+                Traditional issue trackers were built for a world where humans write all the code.
+                AI coding tools like Cursor, Copilot, and Claude have fundamentally changed development velocity,
+                but project management hasn't caught up.
+            </p>
+
+            <div class="grid md:grid-cols-2 gap-10">
+                <div>
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Automate the busywork</h3>
+                    <p class="text-slate-600">
+                        Keeping issues updated with good notes, accurate time logs, and useful documentation was always valuable
+                        but painfully time-consuming. With MCP integration, your AI assistant handles that overhead at the speed
+                        of the conversation — so you get more consistent, more detailed tracking with almost zero manual effort.
+                    </p>
+                </div>
+
+                <div>
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Understand your full output</h3>
+                    <p class="text-slate-600">
+                        See how much work was done overall and how much of it was a result of your effort.
+                        When you're orchestrating multiple agents across multiple projects, this is how you
+                        measure and improve your real productivity.
+                    </p>
+                </div>
+
+                <div>
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">AI as a first-class participant</h3>
+                    <p class="text-slate-600">
+                        A full Model Context Protocol (MCP) server lets AI assistants in Cursor, Claude Desktop,
+                        or any MCP-compatible client create issues, start timers, move cards on the board, and log
+                        their own work — all without leaving the editor.
+                    </p>
+                </div>
+
+                <div>
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Turn data into better decisions</h3>
+                    <p class="text-slate-600">
+                        Track bugs, time, and issues across projects and tag them by framework, language, or workflow.
+                        Use velocity analytics, cross-project comparison, and prediction tools to understand what works
+                        and estimate more accurately as your team evolves.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="py-20 px-6 bg-slate-50">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-16">Features</h2>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Issue Tracking</h3>
+                    <p class="text-sm text-slate-600">Jira-style issues with types, priorities, labels, epics, and parent/child hierarchy.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Kanban Board</h3>
+                    <p class="text-sm text-slate-600">Drag-and-drop board with real-time updates via htmx.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Time Tracking</h3>
+                    <p class="text-sm text-slate-600">Real-time start/stop timers, work sessions, human vs. agent time split.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Velocity Analytics</h3>
+                    <p class="text-sm text-slate-600">Sprint velocity, cycle time, estimation accuracy, and project health.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Cross-Project Comparison</h3>
+                    <p class="text-sm text-slate-600">Compare metrics across projects by technology tags.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Project Prediction</h3>
+                    <p class="text-sm text-slate-600">Estimate timelines for new projects based on historical data.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">REST API</h3>
+                    <p class="text-sm text-slate-600">JSON API with OAuth2 authentication for mobile apps and integrations.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Web UI</h3>
+                    <p class="text-sm text-slate-600">Server-rendered HTML with htmx and Alpine.js. No SPA framework needed.</p>
+                </div>
+                <div class="bg-white rounded-xl p-6 border border-slate-200">
+                    <h3 class="font-semibold mb-2">Simple Deployment</h3>
+                    <p class="text-sm text-slate-600">Single binary with embedded assets. SQLite for zero-config use today; more backends planned.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MCP Section -->
+    <section id="mcp" class="py-20 px-6">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-4">First-Class MCP Integration</h2>
+            <p class="text-lg text-slate-600 text-center max-w-2xl mx-auto mb-12">
+                Your AI assistant becomes a full participant in project management.
+                Connect any MCP-compatible client and let it manage issues, track time, and query analytics.
+            </p>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="font-semibold text-lg mb-4">Workflow Tools</h3>
+                    <p class="text-sm text-slate-600 mb-4">Two commands cover the most common workflow:</p>
+                    <div class="bg-slate-900 rounded-xl p-5 font-mono text-sm text-slate-300">
+                        <div class="text-green-400 mb-1">→ begin_work YAIT-42</div>
+                        <div class="text-slate-500 mb-3">  Starts timer, moves to in-progress</div>
+                        <div class="text-slate-500 mb-1">  ... agent does the work ...</div>
+                        <div class="text-slate-500 mb-3"></div>
+                        <div class="text-green-400 mb-1">→ complete_work YAIT-42</div>
+                        <div class="text-slate-500">  Stops timer, adds summary, moves to done</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-lg mb-4">25 Tools Available</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">Issue CRUD, search, board management</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">Start/stop agent timers, session status</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">Velocity, estimation accuracy, project health</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">Cross-project comparison by tag</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">Timeline prediction for new projects</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-brand-500"></span>
+                            <span class="text-slate-700">5 resource endpoints for context</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-500 mt-4">
+                        Works with Cursor, Claude Desktop, and any MCP-compatible client via stdio or HTTP transport.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Get Started -->
+    <section id="get-started" class="py-20 px-6 bg-slate-50">
+        <div class="max-w-3xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">Get Started</h2>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="font-semibold text-lg mb-4">From Source</h3>
+                    <div class="bg-slate-900 rounded-xl p-5 font-mono text-sm text-slate-300 space-y-1">
+                        <div>git clone https://github.com/</div>
+                        <div>  loweryaustin/YAITracker.git</div>
+                        <div>cd YAITracker</div>
+                        <div>make build</div>
+                        <div class="text-slate-500 mt-2"># Set a secret (32+ chars)</div>
+                        <div>export YAITRACKER_SECRET="..."</div>
+                        <div class="mt-2">./yaitracker serve</div>
+                        <div class="text-slate-500 mt-2"># → http://localhost:8080</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold text-lg mb-4">Docker</h3>
+                    <div class="bg-slate-900 rounded-xl p-5 font-mono text-sm text-slate-300 space-y-1">
+                        <div>make docker</div>
+                        <div class="mt-2 text-slate-500"># Create a .env file</div>
+                        <div>echo 'YAITRACKER_SECRET=...' \</div>
+                        <div>  > .env</div>
+                        <div class="mt-2">docker compose up -d</div>
+                        <div class="text-slate-500 mt-2"># → http://localhost:8080</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-10">
+                <a href="https://github.com/loweryaustin/YAITracker#cli"
+                   class="text-brand-600 hover:text-brand-700 font-medium text-sm">
+                    Full documentation on GitHub →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="py-20 px-6">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="text-3xl font-bold mb-8">Architecture</h2>
+            <div class="bg-slate-900 rounded-xl p-8 font-mono text-sm text-slate-300 text-left inline-block mx-auto">
+                <div>yaitracker serve</div>
+                <div class="text-slate-500 ml-4">→ chi Router → HTML handlers (htmx/Alpine.js)</div>
+                <div class="text-slate-500 ml-4">            → JSON API (/api/v1, OAuth2)</div>
+                <div class="text-slate-500 ml-4">            → Static assets (embedded)</div>
+                <div class="mt-4">yaitracker mcp</div>
+                <div class="text-slate-500 ml-4">→ MCP Server (stdio or HTTP) → tools + resources</div>
+            </div>
+            <p class="text-slate-600 mt-6">
+                Both commands share the same SQLite database. The entire application compiles to a single binary with all assets embedded.
+            </p>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="gradient-hero py-16 px-6">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="text-3xl font-bold text-white mb-4">Ready to try it?</h2>
+            <p class="text-indigo-200 mb-8">
+                YAITracker is free, open source, and licensed under AGPLv3.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="https://github.com/loweryaustin/YAITracker"
+                   class="px-8 py-3 bg-white text-brand-700 rounded-lg font-semibold hover:bg-indigo-50 transition shadow-lg">
+                    View on GitHub
+                </a>
+                <a href="https://github.com/loweryaustin/YAITracker/issues"
+                   class="px-8 py-3 border-2 border-indigo-300 text-white rounded-lg font-semibold hover:bg-white/10 transition">
+                    Share Feedback
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 py-10 px-6">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-sm">
+                YAITracker — <a href="https://github.com/loweryaustin/YAITracker/blob/master/LICENSE" class="hover:text-white">AGPLv3 License</a>
+            </div>
+            <div class="flex items-center gap-6 text-sm">
+                <a href="https://github.com/loweryaustin/YAITracker" class="hover:text-white">GitHub</a>
+                <a href="https://github.com/loweryaustin/YAITracker/issues" class="hover:text-white">Issues</a>
+                <a href="https://github.com/loweryaustin/YAITracker#contributing" class="hover:text-white">Contributing</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
