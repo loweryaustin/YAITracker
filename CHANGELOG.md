@@ -3,6 +3,19 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+## [v0.8.0] - 2026-04-04
+
+### Features
+
+- Audit repository for public release and add AGPLv3 license (0faedac)
+
+  Scanned working tree and full git history for secrets, private IPs,
+  hostnames, and personal filesystem paths — all clean. Added AGPLv3
+  LICENSE file. Updated README with correct GitHub clone URL, current
+  MCP tools table (added delete_project, delete_issue, start_session,
+  end_session, start_timer, stop_timer, get_session_status, begin_work,
+  complete_work), and accurate feature/endpoint descriptions.
+
 ## [v0.7.0] - 2026-04-04
 
 ### Features

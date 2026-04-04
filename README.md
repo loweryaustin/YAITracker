@@ -6,7 +6,7 @@ A self-hosted issue tracker with built-in time tracking, velocity analytics, and
 
 - **Issue Tracking** -- Jira-style issues with types, priorities, labels, epics, parent/child hierarchy
 - **Kanban Board** -- Drag-and-drop board with SortableJS, real-time updates via htmx
-- **Time Tracking** -- Start/stop timers and manual time entries per issue
+- **Time Tracking** -- Real-time start/stop timers, work sessions (clock-in/out), human vs agent time split
 - **Velocity Analytics** -- Sprint velocity, cycle time, estimation accuracy, project health
 - **Cross-Project Comparison** -- Compare metrics across projects by technology tags (Go vs PHP, etc.)
 - **Project Prediction** -- Estimate timelines for new projects based on historical data
@@ -20,8 +20,8 @@ A self-hosted issue tracker with built-in time tracking, velocity analytics, and
 
 ```bash
 # Clone and build
-git clone https://yaitracker.com/loweryaustin.git
-cd yaitracker
+git clone https://github.com/loweryaustin/YAITracker.git
+cd YAITracker
 make build
 
 # Set a secret (must be 32+ characters)
@@ -122,22 +122,30 @@ Add to your MCP settings:
 |------|-------------|
 | `list_projects` | List all projects with summary stats |
 | `create_project` | Create a new project |
+| `delete_project` | Permanently delete a project and all related data |
 | `tag_project` | Add or remove a tag on a project |
 | `list_tags` | List all tags with usage counts |
 | `list_issues` | List issues with optional filters (status, type, assignee, query) |
-| `get_issue` | Get full issue detail with comments, time entries, and children |
+| `get_issue` | Get full issue detail with comments, time entries, and labels |
 | `create_issue` | Create a new issue with type, priority, estimates |
 | `update_issue` | Update issue fields |
 | `move_issue` | Change issue status (move on the board) |
+| `delete_issue` | Permanently delete an issue and all related data |
 | `add_comment` | Add a comment to an issue |
 | `search_issues` | Search issues across all projects |
-| `log_time` | Log time manually for an issue |
+| `start_session` | Start a human work session (clock in) |
+| `end_session` | End the active work session (clock out) |
+| `start_timer` | Start a real-time timer on an issue (human or agent) |
+| `stop_timer` | Stop an active timer by ID or project key + number |
+| `get_session_status` | Get current session, active timers, and utilization metrics |
 | `get_time_entries` | Get time entries for an issue |
+| `begin_work` | Start working on an issue (starts timer, moves to in-progress) |
+| `complete_work` | Finish an issue (stops timer, adds summary, moves to done) |
 | `get_velocity` | Get velocity data for a project |
 | `get_estimation_accuracy` | Get estimation accuracy report |
 | `get_project_health` | Get project health summary |
 | `compare_by_tag` | Compare project metrics by tag group |
-| `predict_new_project` | Predict timeline for a new project |
+| `predict_new_project` | Predict timeline for a new project based on historical data |
 
 ### Available Resources
 
@@ -185,7 +193,7 @@ curl -X POST http://localhost:8080/api/v1/auth/refresh \
 
 **Tags**: `GET/POST /projects/{key}/tags`, `DELETE /projects/{key}/tags/{tag}`, `GET /tags`
 
-**Time Tracking**: `POST /time/start`, `POST /time/stop`, `GET /time/active`, `GET/POST /issues/{id}/time`
+**Time Tracking**: `POST /time/start`, `POST /time/stop`, `GET /time/active`, `GET/POST /issues/{id}/time`, `PATCH/DELETE /time/{id}`, `GET /time/sheet`
 
 **Analytics**: `GET /projects/{key}/analytics/velocity`, `GET /analytics/compare`, `GET /analytics/predict`
 
@@ -238,4 +246,4 @@ Both commands share the same SQLite database. The entire application compiles to
 
 ## License
 
-MIT
+[GNU Affero General Public License v3.0](LICENSE)
