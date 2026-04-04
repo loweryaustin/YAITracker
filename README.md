@@ -244,6 +244,7 @@ Both commands share the same SQLite database. The entire application compiles to
 
 ```bash
 make dev          # Build and run with dev settings
+make hooks        # Install git hooks (recommended once per clone)
 make test         # Run tests
 make vulncheck    # Check for vulnerabilities
 make fmt          # Format code
@@ -251,11 +252,20 @@ make lint         # Lint
 make clean        # Clean build artifacts
 ```
 
+### Git hooks
+
+Run `make hooks` once per clone. That sets `core.hooksPath` to `.githooks` and enables:
+
+- **commit-msg** -- First line must match [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `chore`, etc.). Merge commits are allowed. You get a reminder if the body has no `Refs: YAIT-N` line.
+- **pre-push** -- Runs `go vet ./...` and `go test -race` (same spirit as CI). Set `GITHOOKS_SKIP=1` to skip the check for a single push, or use `git push --no-verify`.
+
+Hooks are a local aid only; they do not replace server-side branch protection. Before opening a PR, run `make audit` (full suite per project guidelines).
+
 ## Contributing
 
 YAITracker is open to contributions. If you have ideas about how AI changes development workflows -- or you just want better issue tracking -- open an issue or submit a PR.
 
-This project follows [Conventional Commits](https://www.conventionalcommits.org/) and [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/) branching.
+This project follows [Conventional Commits](https://www.conventionalcommits.org/) and [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/) branching. Default integration branches are `develop` and `master` (releases are tagged on `master`).
 
 ## License
 

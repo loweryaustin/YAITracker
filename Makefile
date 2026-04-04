@@ -1,4 +1,4 @@
-.PHONY: help confirm no-dirty
+.PHONY: help confirm no-dirty hooks
 .PHONY: css css/watch css/install
 .PHONY: build dev run
 .PHONY: test test/cover test/integration lint fmt tidy audit vulncheck
@@ -29,6 +29,12 @@ confirm:
 
 no-dirty:
 	@test -z "$$(git status --porcelain)" || (echo "error: working tree is dirty" && exit 1)
+
+## hooks: install repo git hooks (conventional commits + pre-push vet/test)
+hooks:
+	@git config core.hooksPath .githooks
+	@chmod +x .githooks/commit-msg .githooks/pre-push
+	@echo "git hooks installed (core.hooksPath=.githooks). bypass: --no-verify or GITHOOKS_SKIP=1 on push"
 
 # ──────────────────────────────────────────────────────
 # CSS
