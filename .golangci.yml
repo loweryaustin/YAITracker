@@ -18,32 +18,31 @@ linters:
     - wastedassign
   disable:
     - depguard
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+    gosec:
+      excludes:
+        - G104
+    revive:
+      rules:
+        - name: unexported-return
+          disabled: true
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-    disabled-checks:
-      - hugeParam
-  gosec:
-    excludes:
-      - G104
-  revive:
-    rules:
-      - name: unexported-return
-        disabled: true
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  nolintlint:
-    require-explanation: true
-    require-specific: true
 
 issues:
   max-issues-per-linter: 0
