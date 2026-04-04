@@ -1,25 +1,21 @@
 ## Summary
 
-<!-- 1-3 bullet points describing the change -->
+<!-- What does this PR do and why? -->
 
--
+## Issue
 
-## Related Issue
+<!-- Link using YAIT-N or full URL -->
 
 Refs: YAIT-
 
-## Type of Change
-
-- [ ] Bug fix (`fix`)
-- [ ] New feature (`feat`)
-- [ ] Refactoring (`refactor`)
-- [ ] Tests (`test`)
-- [ ] Documentation (`docs`)
-- [ ] Chore (`chore`)
-
 ## Checklist
 
-- [ ] `make audit` passes
-- [ ] New/changed code has corresponding tests
-- [ ] Conventional commit messages used
-- [ ] YAITracker issue updated (status, time logged, comments)
+- [ ] Target branch is **`develop`** (unless this is an agreed hotfix/release flow)
+- [ ] Commits follow [Conventional Commits](https://www.conventionalcommits.org/) and include **`Refs: YAIT-N`** in the body when applicable
+- [ ] **`make audit`** passes locally
+- [ ] For user-visible behavior: tested manually or noted why N/A
+- [ ] Docs/README updated if behavior or setup changed
+
+## Notes for reviewers
+
+<!-- Optional: risks, follow-ups, screenshots -->
