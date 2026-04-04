@@ -22,6 +22,12 @@ coverage.html
 # Release
 dist/
 
+# Docs references (screenshots, etc.)
+Docs/References/
+
+# Tailwind standalone CLI binary
+tools/
+
 # OS
 .DS_Store
 Thumbs.db

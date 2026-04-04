@@ -1,0 +1,28 @@
+@import "tailwindcss";
+@source "../../internal/handler/*.go";
+@source "../js/*.js";
+
+@layer utilities {
+  [x-cloak] {
+    display: none !important;
+  }
+}
+
+@layer base {
+  .htmx-indicator {
+    display: none;
+  }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    display: inline-block;
+  }
+
+  .sortable-ghost {
+    opacity: 0.4;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateY(1rem); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+}
