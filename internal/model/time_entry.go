@@ -6,6 +6,8 @@ type TimeEntry struct {
 	ID          string     `json:"id"`
 	IssueID     string     `json:"issue_id"`
 	UserID      string     `json:"user_id"`
+	SessionID   string     `json:"session_id,omitempty"`
+	ActorType   string     `json:"actor_type"`
 	Description string     `json:"description,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
 	EndedAt     *time.Time `json:"ended_at,omitempty"`
@@ -16,6 +18,17 @@ type TimeEntry struct {
 
 	User  *User  `json:"user,omitempty"`
 	Issue *Issue `json:"issue,omitempty"`
+}
+
+type WorkSession struct {
+	ID          string     `json:"id"`
+	UserID      string     `json:"user_id"`
+	Description string     `json:"description,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
+	EndedAt     *time.Time `json:"ended_at,omitempty"`
+	Duration    *int64     `json:"duration,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type TimesheetRow struct {

@@ -18,12 +18,21 @@ func (a *API) StartTimer(w http.ResponseWriter, r *http.Request) {
 
 	user := a.currentUser(r)
 
-	// Stop existing timer
-	if active, _ := a.Store.GetActiveTimer(r.Context(), user.ID); active != nil {
-		a.Store.StopTimer(r.Context(), user.ID)
+	// Ensure a work session exists for the human
+	sessionID := ""
+	ws, _ := a.Store.GetActiveWorkSession(r.Context(), user.ID)
+	if ws != nil {
+		sessionID = ws.ID
+	} else {
+		ws, err := a.Store.CreateWorkSession(r.Context(), user.ID, "")
+		if err != nil {
+			a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not create work session")
+			return
+		}
+		sessionID = ws.ID
 	}
 
-	entry, err := a.Store.StartTimer(r.Context(), req.IssueID, user.ID)
+	entry, err := a.Store.StartTimer(r.Context(), req.IssueID, user.ID, "human", sessionID)
 	if err != nil {
 		a.jsonError(w, http.StatusConflict, "conflict", err.Error())
 		return

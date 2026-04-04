@@ -7,20 +7,40 @@ alwaysApply: true
 
 The YAITracker MCP server (project key: **YAIT**) is the source of truth for all project management. Use MCP tools at every stage -- not as an afterthought.
 
+## Work Sessions
+
+A work session represents the human's time at their desk. It captures total wall-clock time including overhead between issues.
+
+- `start_session` at the beginning of every work period (description: what the session is for)
+- `end_session` when the human is done working -- this auto-stops any running human timer
+- `get_session_status` at natural breakpoints to report utilization to the human
+
+## Time Tracking
+
+Time is tracked via real-time start/stop events only. Never fabricate durations.
+
+- `start_timer` (project_key, number, actor_type) starts a real-time clock on an issue
+  - `actor_type` defaults to `"agent"` -- use this for autonomous AI work
+  - `actor_type: "human"` requires an active work session and auto-stops the previous human timer
+- `stop_timer` (timer_id or project_key+number) stops the timer and records actual duration
+- Multiple agent timers can run concurrently on different issues
+- Only one human timer can be active at a time
+
 ## Issue Lifecycle
 
 **Before starting work:**
 - `list_issues` (project_key: YAIT, status: todo,backlog) to review the board
 - `move_issue` to `in_progress`
 - `add_comment` with a brief plan of what will be done
+- `start_timer` on the issue being worked on
 
 **During work:**
 - `add_comment` to record significant decisions, blockers, or scope changes
 - `create_issue` immediately when new work is discovered (never defer) -- include type, priority, story_points, estimated_hours
-- `log_time` after completing meaningful chunks (not at the end -- as you go)
+- If switching issues, `start_timer` on the new issue (previous human timer auto-stops)
 
 **After completing work:**
-- `log_time` for any remaining unlogged time
+- `stop_timer` on the issue
 - `add_comment` with a completion summary (what changed, files touched, tests added)
 - `move_issue` to `done`
 - If actual time differs from estimate by >50%, `add_comment` reflecting on why
@@ -28,7 +48,7 @@ The YAITracker MCP server (project key: **YAIT**) is the source of truth for all
 ## Estimation Discipline
 
 - Every issue: `story_points` (fibonacci: 1,2,3,5,8,13) + `estimated_hours`
-- Log time in real increments -- this feeds velocity analytics
+- Timer durations feed velocity analytics automatically
 - Use `update_issue` to adjust story_points post-completion if estimate was wrong
 
 ## Periodic Health Checks
@@ -37,6 +57,7 @@ At session start or milestone end, review and report:
 - `get_project_health` (project_key: YAIT)
 - `get_velocity` (project_key: YAIT)
 - `get_estimation_accuracy` (project_key: YAIT)
+- `get_session_status` for current utilization
 
 ## Issue Quality
 
