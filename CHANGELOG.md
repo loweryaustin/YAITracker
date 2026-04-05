@@ -4,6 +4,29 @@ All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
 
+## [v0.11.0] - 2026-04-05
+
+### Bug Fixes
+
+- Locate go when PATH omits install dirs (2f33c9a)
+
+### Documentation
+
+- Align workflow rules with canonical git and MCP flow (0b24bcb)
+
+### Features
+
+- Attribute agent timers with MCP actor id (cad0cbf)
+
+### Miscellaneous
+
+- Record cursor rules alignment under YAIT-32 (d22e0e2)
+
+### Testing
+
+- Add NewTestStoreFile for concurrent store access (96690f1)
+
+
 ## [v0.10.0] - 2026-04-05
 
 ### Features
