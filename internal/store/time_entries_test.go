@@ -15,8 +15,9 @@ func TestStartTimer_agent(t *testing.T) {
 	ctx := context.Background()
 	p, u := testutil.SeedProject(t, st, "AGNT")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "agnt")
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer(agent) error = %v", err)
 	}
@@ -110,13 +111,14 @@ func TestStartTimer_concurrentAgentTimers(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "CONC")
 	issue1 := testutil.SeedIssue(t, st, p.ID, u.ID)
 	issue2 := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "conc")
 
-	_, err := st.StartTimer(ctx, issue1.ID, u.ID, "agent", "", "", "")
+	_, err := st.StartTimer(ctx, issue1.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer(agent, issue1) error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", "")
+	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer(agent, issue2) error = %v, want nil (concurrent agent timers allowed)", err)
 	}
@@ -136,13 +138,14 @@ func TestStartTimer_rejectsDuplicateIssueAgent(t *testing.T) {
 	ctx := context.Background()
 	p, u := testutil.SeedProject(t, st, "DUPE")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "dupe")
 
-	_, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	_, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer(first) error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	_, err = st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err == nil {
 		t.Error("StartTimer() should reject duplicate agent timer on same issue")
 	}
@@ -154,8 +157,9 @@ func TestStopTimerByID(t *testing.T) {
 	ctx := context.Background()
 	p, u := testutil.SeedProject(t, st, "STOP")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "stop")
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
@@ -190,7 +194,8 @@ func TestGetActiveTimers(t *testing.T) {
 	if _, err := st.StartTimer(ctx, issue1.ID, u.ID, "human", ws.ID, "", ""); err != nil {
 		t.Fatalf("StartTimer(human) error = %v", err)
 	}
-	if _, err := st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", ""); err != nil {
+	ag := testutil.SeedMCPActor(t, st, u.ID, "actv")
+	if _, err := st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", ag.ID); err != nil {
 		t.Fatalf("StartTimer(agent) error = %v", err)
 	}
 
@@ -213,8 +218,9 @@ func TestStopOrphanedTimers(t *testing.T) {
 	ctx := context.Background()
 	p, u := testutil.SeedProject(t, st, "ORPH")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "orph")
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
@@ -282,14 +288,39 @@ func TestGetDailySummary(t *testing.T) {
 	}
 }
 
+func TestListTimeEntries_includesMcpActorID(t *testing.T) {
+	t.Parallel()
+	st := testutil.NewTestStore(t)
+	ctx := context.Background()
+	p, u := testutil.SeedProject(t, st, "LSTE")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "list")
+
+	_, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
+	if err != nil {
+		t.Fatalf("StartTimer: %v", err)
+	}
+	entries, err := st.ListTimeEntries(ctx, issue.ID)
+	if err != nil {
+		t.Fatalf("ListTimeEntries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+	if entries[0].McpActorID != actor.ID {
+		t.Errorf("McpActorID = %q, want %q", entries[0].McpActorID, actor.ID)
+	}
+}
+
 func TestGetActiveTimersWithIssues(t *testing.T) {
 	t.Parallel()
 	st := testutil.NewTestStore(t)
 	ctx := context.Background()
 	p, u := testutil.SeedProject(t, st, "ATWI")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "atwi")
 
-	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", ""); err != nil {
+	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID); err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}
 

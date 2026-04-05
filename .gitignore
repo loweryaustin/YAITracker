@@ -11,11 +11,16 @@
 .env
 deploy/.env
 
-# IDE (copy from .cursor/mcp.json.example; never commit secrets)
+# IDE (copy from .cursor/*.example; never commit secrets or machine-specific paths)
 .cursor/mcp.json
+.cursor/hooks.json
 .cursor/yait-workflow-state.json
 .cursor/yait-work-lock
 .cursor/yait-hook-disable
+.cursor/hook-payload-dump.jsonl
+.cursor/hook-debug.log
+.cursor/yait-sidecar.sock
+.cursor/yait-conversation-id
 .vscode/
 .idea/
 

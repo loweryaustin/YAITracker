@@ -22,11 +22,10 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 	mcpActorID = normalizeMCPActorID(mcpActorID)
 	var mcpArg interface{}
 	if actorType == "agent" {
-		if mcpActorID != "" {
-			mcpArg = mcpActorID
-		} else {
-			mcpArg = nil
+		if mcpActorID == "" {
+			return nil, fmt.Errorf("agent timer requires a registered mcp actor id")
 		}
+		mcpArg = mcpActorID
 	} else {
 		mcpArg = nil
 	}
@@ -68,13 +67,23 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 				return fmt.Errorf("check existing human timer: %w", err)
 			}
 		} else {
-			// Agent: reject if same issue already has an active agent timer for this MCP actor slot
-			// (legacy: mcp_actor_id NULL/empty shares one slot via ifnull(..., '')).
-			var existing string
+			var check string
 			err := tx.QueryRowContext(ctx,
+				`SELECT id FROM mcp_actors WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+				mcpActorID, userID,
+			).Scan(&check)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return fmt.Errorf("mcp actor id is not registered for this user")
+				}
+				return fmt.Errorf("validate mcp actor: %w", err)
+			}
+
+			var existing string
+			err = tx.QueryRowContext(ctx,
 				`SELECT id FROM time_entries
 				 WHERE issue_id = ? AND actor_type = 'agent' AND ended_at IS NULL
-				   AND ifnull(mcp_actor_id, '') = ifnull(?, '')`, issueID, mcpArg,
+				   AND mcp_actor_id = ?`, issueID, mcpActorID,
 			).Scan(&existing)
 			if err == nil {
 				return fmt.Errorf("active agent timer already running on this issue (id: %s)", existing)
@@ -327,7 +336,7 @@ func (s *Store) GetTimeEntry(ctx context.Context, id string) (*model.TimeEntry, 
 
 func (s *Store) ListTimeEntries(ctx context.Context, issueID string) ([]model.TimeEntry, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT te.id, te.issue_id, te.user_id, te.session_id, te.actor_type,
+		`SELECT te.id, te.issue_id, te.user_id, te.session_id, te.actor_type, te.mcp_actor_id,
 		        te.description, te.started_at, te.ended_at,
 		        te.duration, te.source, te.created_at, te.updated_at,
 		        u.id, u.name, u.email

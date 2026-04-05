@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 	"time"
 
@@ -175,8 +176,8 @@ func (a *API) GetTimesheet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := a.Store.DB().QueryContext(r.Context(),
-		`SELECT te.id, te.issue_id, te.user_id, te.description, te.started_at, te.ended_at,
-		        te.duration, te.source, te.created_at, te.updated_at
+		`SELECT te.id, te.issue_id, te.user_id, te.description, te.actor_type, te.mcp_actor_id,
+		        te.started_at, te.ended_at, te.duration, te.source, te.created_at, te.updated_at
 		 FROM time_entries te
 		 WHERE te.user_id = ? AND te.started_at >= ? AND te.started_at < ? AND te.duration IS NOT NULL
 		 ORDER BY te.started_at`,
@@ -190,10 +191,25 @@ func (a *API) GetTimesheet(w http.ResponseWriter, r *http.Request) {
 	var entries []model.TimeEntry
 	for rows.Next() {
 		var e model.TimeEntry
-		var desc, endedAt interface{}
+		var desc, mcp sql.NullString
+		var endedAt sql.NullTime
 		var duration int64
-		rows.Scan(&e.ID, &e.IssueID, &e.UserID, &desc,
-			&e.StartedAt, &endedAt, &duration, &e.Source, &e.CreatedAt, &e.UpdatedAt)
+		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &desc, &e.ActorType, &mcp,
+			&e.StartedAt, &endedAt, &duration, &e.Source, &e.CreatedAt, &e.UpdatedAt); err != nil {
+			a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not load timesheet")
+			return
+		}
+		if desc.Valid {
+			e.Description = desc.String
+		}
+		if mcp.Valid {
+			e.McpActorID = mcp.String
+		}
+		e.EndedAt = nil
+		if endedAt.Valid {
+			t := endedAt.Time
+			e.EndedAt = &t
+		}
 		d := duration
 		e.Duration = &d
 		entries = append(entries, e)

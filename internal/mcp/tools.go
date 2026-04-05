@@ -705,17 +705,12 @@ func toolSearchIssues(st *store.Store) server.ToolHandlerFunc {
 }
 
 // userFromCtx returns the authenticated user's ID from context (set by bearer
-// token auth). Falls back to the first user in the database for backward
-// compatibility with unauthenticated clients.
+// token auth for HTTP MCP, or by the Sidecar proxy for stdio clients).
 func userFromCtx(ctx context.Context, st *store.Store) (string, error) {
 	if u := auth.UserFromContext(ctx); u != nil {
 		return u.ID, nil
 	}
-	users, err := st.ListUsers(ctx)
-	if err != nil || len(users) == 0 {
-		return "", fmt.Errorf("no users exist -- configure a bearer token in .cursor/mcp.json")
-	}
-	return users[0].ID, nil
+	return "", fmt.Errorf("authenticate with Authorization: Bearer <access_token> from POST /api/v1/auth/token")
 }
 
 func toolStartSession(st *store.Store) server.ToolHandlerFunc {
@@ -765,6 +760,9 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		if !StrictAgentWorkflow() {
+			if err := auth.AgentMCPAuthError(ctx); err != nil {
+				return errResult(err), nil
+			}
 			p, err := st.GetProjectByKey(ctx, key)
 			if err != nil {
 				return errResult(fmt.Errorf("get project: %w", err)), nil
@@ -835,11 +833,10 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 					continue
 				}
 				if t.ActorType == "agent" {
-					if actorCtx != "" {
-						if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
-							continue
-						}
-					} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+					if err := auth.AgentMCPAuthError(ctx); err != nil {
+						return errResult(err), nil
+					}
+					if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
 						continue
 					}
 				}
@@ -1038,6 +1035,10 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 			return errResult(err), nil
 		}
 
+		if err := auth.AgentMCPAuthError(ctx); err != nil {
+			return errResult(err), nil
+		}
+
 		if StrictAgentWorkflow() {
 			ok, err := activeAgentTimerOnIssue(ctx, st, userID, issue.ID)
 			if err != nil {
@@ -1058,11 +1059,7 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 			if t.IssueID != issue.ID || t.ActorType != "agent" {
 				continue
 			}
-			if actorCtx != "" {
-				if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
-					continue
-				}
-			} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+			if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
 				continue
 			}
 			stopped, err := st.StopTimerByID(ctx, t.ID)
@@ -1089,6 +1086,17 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		durationMin := float64(durationSec) / 60
+
+		//nolint:errcheck // audit log is best-effort after issue completion
+		st.LogActivity(ctx, &model.ActivityLog{
+			EntityType: "issue",
+			EntityID:   issue.ID,
+			UserID:     userID,
+			Action:     "mcp_complete_work",
+			Field:      "mcp_actor_id",
+			NewValue:   actorCtx,
+		})
+
 		return textResult(fmt.Sprintf("Completed %s-%d: %s\nTime logged: %.1f minutes",
 			key, number, issue.Title, durationMin)), nil
 	}

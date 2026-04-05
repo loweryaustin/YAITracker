@@ -16,10 +16,10 @@ type VelocityReport struct {
 }
 
 type CycleTimeStats struct {
-	IssueType    string  `json:"issue_type"`
-	AvgDays      float64 `json:"avg_days"`
-	MedianDays   float64 `json:"median_days"`
-	Count        int     `json:"count"`
+	IssueType  string  `json:"issue_type"`
+	AvgDays    float64 `json:"avg_days"`
+	MedianDays float64 `json:"median_days"`
+	Count      int     `json:"count"`
 }
 
 type EstimationAccuracy struct {
@@ -30,10 +30,10 @@ type EstimationAccuracy struct {
 }
 
 type EstimationReport struct {
-	ProjectID    string  `json:"project_id"`
-	AvgRatio     float64 `json:"avg_ratio"`
+	ProjectID     string  `json:"project_id"`
+	AvgRatio      float64 `json:"avg_ratio"`
 	HoursPerPoint float64 `json:"hours_per_point"`
-	SampleSize   int     `json:"sample_size"`
+	SampleSize    int     `json:"sample_size"`
 }
 
 type TimeByType struct {

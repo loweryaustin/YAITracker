@@ -10,12 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	yaitracker "yaitracker.com/loweryaustin"
 	mcpserver "yaitracker.com/loweryaustin/internal/mcp"
 	"yaitracker.com/loweryaustin/internal/server"
 	"yaitracker.com/loweryaustin/internal/store"
-	mcpstdio "github.com/mark3labs/mcp-go/server"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -43,12 +42,6 @@ var serveCmd = &cobra.Command{
 	RunE:  runServe,
 }
 
-var mcpCmd = &cobra.Command{
-	Use:   "mcp",
-	Short: "Start the MCP server (stdio)",
-	RunE:  runMCP,
-}
-
 var (
 	flagDBPath string
 	flagAddr   string
@@ -64,7 +57,6 @@ func init() {
 	serveCmd.Flags().StringVar(&flagCORS, "cors", envOrDefault("YAITRACKER_CORS_ORIGINS", ""), "Allowed CORS origins")
 
 	rootCmd.AddCommand(serveCmd)
-	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 
@@ -137,21 +129,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	return httpServer.Shutdown(shutdownCtx)
 }
 
-func runMCP(cmd *cobra.Command, args []string) error {
-	st, err := store.New(flagDBPath)
-	if err != nil {
-		return fmt.Errorf("open database: %w", err)
-	}
-	defer st.Close()
-
-	if err := store.Migrate(st.DB(), yaitracker.MigrationsFS, "migrations"); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
-	}
-
-	s := mcpserver.NewMCPServer(st)
-	return mcpstdio.ServeStdio(s)
-}
-
 func cleanupLoop(ctx context.Context, st *store.Store) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
@@ -169,6 +146,9 @@ func cleanupLoop(ctx context.Context, st *store.Store) {
 			}
 			if n, err := st.StopOrphanedTimers(ctx, 8*time.Hour); err == nil && n > 0 {
 				log.Printf("Stopped %d orphaned timers", n)
+			}
+			if n, err := st.RevokeExpiredActors(ctx, 15*time.Minute); err == nil && n > 0 {
+				log.Printf("Revoked %d expired MCP actors", n)
 			}
 		}
 	}
