@@ -30,6 +30,10 @@ If `.cursor/hooks.json` points at `scripts/cursor-hooks/before-shell.sh` and `be
 
 Hooks only affect **Cursor**; they are not part of a default server install.
 
+## Issue labels
+
+Use **`add_issue_label`** (`project_key`, `number`, `label_name`, optional `color`) to attach a label without the web UI. The label is created in the project if it does not already exist (case-insensitive name match).
+
 ## Cursor-specific files
 
 Editor integration (e.g. `.cursor/rules`, `.cursor/hooks.json`) applies only to developers using those tools in a checkout. It is **not** part of a default YAITracker installation.
