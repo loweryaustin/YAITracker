@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "yaitracker": {
+      "command": "/path/to/yaitracker",
+      "args": ["mcp", "--db", "/path/to/yaitracker.db"]
+    }
+  }
+}

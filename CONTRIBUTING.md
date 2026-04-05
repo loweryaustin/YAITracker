@@ -32,7 +32,7 @@ Refs: YAIT-N
 
 **Scopes:** e.g. `mcp`, `handler`, `store`, `api`, `ci`, `deps` (see `.cursor/rules/git-workflow.mdc`)
 
-Include **`Refs: YAIT-N`** in the commit body when it maps to a tracker issue.
+Include **`Refs: YAIT-N`** in the commit body when it maps to a tracker issue, or **`Refs: none`** when there is no issue (e.g. chore-only changes). The `commit-msg` hook **requires** one of these lines.
 
 ## Local git hooks (recommended)
 
@@ -42,7 +42,11 @@ After cloning, run:
 make hooks
 ```
 
-That installs `.githooks`: `commit-msg` (conventional first line + reminder about `Refs:`) and `pre-push` (`go vet` + `go test -race`). Hooks can be bypassed with `git commit --no-verify` / `git push --no-verify` or `GITHOOKS_SKIP=1` for push — use sparingly.
+That installs `.githooks`: `commit-msg` (conventional first line + required `Refs:` line) and `pre-push` (`go vet` + `go test -race`). Hooks can be bypassed with `git commit --no-verify` / `git push --no-verify` or `GITHOOKS_SKIP=1` for push — use sparingly.
+
+## Cursor hooks (optional)
+
+If you use Cursor, the repo may include [`.cursor/hooks.json`](.cursor/hooks.json) calling [`scripts/cursor-hooks/`](scripts/cursor-hooks/) scripts. They are pass-through stubs; **MCP workflow rules are enforced in the server** (`internal/mcp`). Cursor hook behavior is beta and may vary by editor version.
 
 ## Before opening a PR
 

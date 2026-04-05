@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enforces conventional commits and warns when Refs: YAIT-N is missing.
+# Enforces conventional commits and requires Refs: YAIT-N (or Refs: none) in the body.
 # Bypass: git commit --no-verify
 
 set -euo pipefail
@@ -29,8 +29,10 @@ else
 fi
 
 body="$(tail -n +2 "$msg_file" | sed '/^$/d')"
-if ! echo "$body" | grep -qE '^Refs: YAIT-[0-9]+'; then
-  echo "commit-msg: warning: no 'Refs: YAIT-N' in commit body (required by project workflow)" >&2
+if ! echo "$body" | grep -qE '^Refs: (YAIT-[0-9]+|none)[[:space:]]*$'; then
+  echo "commit-msg: commit body must include a line: Refs: YAIT-N (issue number) or Refs: none" >&2
+  echo "  example: Refs: YAIT-42" >&2
+  exit 1
 fi
 
 exit 0

@@ -105,13 +105,17 @@ yaitracker mcp --db yaitracker.db
 | `--secret` | `YAITRACKER_SECRET` | (required) | Application secret (32+ chars) |
 | `--cors` | `YAITRACKER_CORS_ORIGINS` | (empty) | Allowed CORS origins for API |
 
+When the MCP server runs inside `yaitracker serve`, optional **`YAITRACKER_STRICT_AGENT_WORKFLOW`** (default `true`) requires an active agent timer on an issue before `complete_work` succeeds. Set to `false` for operator/testing only.
+
 ## MCP Server
 
 YAITracker includes a first-class MCP server so your AI assistant can manage issues, track time, and query analytics without leaving your editor. Connect it to any MCP-compatible client (Cursor, Claude Desktop, etc.).
 
 ### Setup in Cursor
 
-Add to `.cursor/mcp.json`:
+Copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) (stdio) or [`.cursor/mcp-remote.json.example`](.cursor/mcp-remote.json.example) (HTTP + bearer token) to **`.cursor/mcp.json`** and adjust paths and URLs. That file is **gitignored** so tokens are not committed.
+
+Stdio (local binary):
 
 ```json
 {
@@ -124,13 +128,16 @@ Add to `.cursor/mcp.json`:
 }
 ```
 
-Or connect to a running instance over HTTP:
+Or connect to a running instance over HTTP (set the bearer token from your YAITracker MCP auth):
 
 ```json
 {
   "mcpServers": {
     "yaitracker": {
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      }
     }
   }
 }

@@ -11,8 +11,9 @@
 .env
 deploy/.env
 
-# IDE
+# IDE (copy from .cursor/mcp.json.example; never commit secrets)
 .cursor/mcp.json
+.cursor/yait-workflow-state.json
 .vscode/
 .idea/
 
