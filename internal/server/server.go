@@ -6,9 +6,14 @@ import (
 	"strings"
 
 	mcpgo "github.com/mark3labs/mcp-go/server"
+
 	"yaitracker.com/loweryaustin/internal/auth"
 	"yaitracker.com/loweryaustin/internal/store"
 )
+
+// MCPActorIDHeader is the HTTP header clients send to identify concurrent MCP agents
+// (same user, same issue, distinct timers). Optional; empty/absent uses legacy single-slot behavior.
+const MCPActorIDHeader = "X-Yaitracker-Mcp-Actor-Id"
 
 type Server struct {
 	store     *store.Store
@@ -47,6 +52,11 @@ func (s *Server) mcpContextFunc() func(ctx context.Context, r *http.Request) con
 		if err != nil {
 			return ctx
 		}
-		return auth.ContextWithUser(ctx, user)
+		ctx = auth.ContextWithUser(ctx, user)
+		actor := r.Header.Get(MCPActorIDHeader)
+		if actor != "" {
+			ctx = auth.ContextWithMCPActorID(ctx, actor)
+		}
+		return ctx
 	}
 }

@@ -8,6 +8,7 @@ type TimeEntry struct {
 	UserID      string     `json:"user_id"`
 	SessionID   string     `json:"session_id,omitempty"`
 	ActorType   string     `json:"actor_type"`
+	McpActorID  string     `json:"mcp_actor_id,omitempty"`
 	Description string     `json:"description,omitempty"`
 	StartedAt   time.Time  `json:"started_at"`
 	EndedAt     *time.Time `json:"ended_at,omitempty"`
@@ -32,9 +33,9 @@ type WorkSession struct {
 }
 
 type TimesheetRow struct {
-	Issue   Issue   `json:"issue"`
+	Issue   Issue    `json:"issue"`
 	Entries [7]int64 `json:"entries"` // seconds per day, Mon-Sun
-	Total   int64   `json:"total"`
+	Total   int64    `json:"total"`
 }
 
 type TimesheetData struct {

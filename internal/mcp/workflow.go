@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"yaitracker.com/loweryaustin/internal/auth"
 	"yaitracker.com/loweryaustin/internal/model"
 	"yaitracker.com/loweryaustin/internal/store"
 )
@@ -21,15 +22,27 @@ func StrictAgentWorkflow() bool {
 	return v != "false" && v != "0" && v != "no" && v != "off"
 }
 
-// activeAgentTimerOnIssue reports whether the user has an active agent timer on the given issue.
+// activeAgentTimerOnIssue reports whether the user has an active agent timer on the given issue
+// for the MCP actor in ctx (from X-Yaitracker-Mcp-Actor-Id). Empty actor matches only legacy timers
+// with no mcp_actor_id; non-empty matches that id only.
 func activeAgentTimerOnIssue(ctx context.Context, st *store.Store, userID, issueID string) (bool, error) {
 	timers, err := st.GetActiveTimers(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("get active timers: %w", err)
 	}
+	actorCtx := auth.MCPActorIDFromContext(ctx)
 	for i := range timers {
 		t := &timers[i]
-		if t.IssueID == issueID && t.ActorType == "agent" {
+		if t.IssueID != issueID || t.ActorType != "agent" {
+			continue
+		}
+		if actorCtx != "" {
+			if auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+				return true, nil
+			}
+			continue
+		}
+		if auth.NormalizeMCPActorID(t.McpActorID) == "" {
 			return true, nil
 		}
 	}
@@ -74,7 +87,7 @@ func beginAgentWork(ctx context.Context, st *store.Store, userID, key string, nu
 		}
 	}
 
-	entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
+	entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc, auth.MCPActorIDFromContext(ctx))
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("start timer: %w", err)
 	}

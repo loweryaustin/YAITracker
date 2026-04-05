@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"yaitracker.com/loweryaustin/internal/auth"
 	"yaitracker.com/loweryaustin/internal/testutil"
 )
 
@@ -51,7 +52,7 @@ func TestActiveAgentTimerOnIssue(t *testing.T) {
 		t.Fatal("expected no active agent timer")
 	}
 
-	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", ""); err != nil {
+	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", ""); err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}
 
@@ -163,5 +164,50 @@ func TestStoppingTimerOnOneIssueLeavesOtherIssueTimer(t *testing.T) {
 	okB, err := activeAgentTimerOnIssue(ctx, st, u.ID, b.ID)
 	if err != nil || !okB {
 		t.Fatalf("issue B should still have agent timer: ok=%v err=%v", okB, err)
+	}
+}
+
+func TestBeginAgentWorkDistinctMcpActorsSameIssue(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	st := testutil.NewTestStore(t)
+	p, u := testutil.SeedProject(t, st, "MCP2")
+	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	ctxA := auth.ContextWithMCPActorID(ctx, "cursor-a")
+	_, e1, _, err := beginAgentWork(ctxA, st, u.ID, p.Key, issue.Number, "")
+	if err != nil {
+		t.Fatalf("beginAgentWork a: %v", err)
+	}
+
+	ctxB := auth.ContextWithMCPActorID(ctx, "cursor-b")
+	_, e2, _, err := beginAgentWork(ctxB, st, u.ID, p.Key, issue.Number, "")
+	if err != nil {
+		t.Fatalf("beginAgentWork b: %v", err)
+	}
+	if e1.ID == e2.ID {
+		t.Fatal("expected distinct timer rows")
+	}
+
+	if _, _, _, err := beginAgentWork(ctxA, st, u.ID, p.Key, issue.Number, ""); err == nil {
+		t.Fatal("expected reject: duplicate agent slot for same issue and mcp actor")
+	}
+
+	okA, err := activeAgentTimerOnIssue(ctxA, st, u.ID, issue.ID)
+	if err != nil || !okA {
+		t.Fatalf("actor a should see its timer: ok=%v err=%v", okA, err)
+	}
+	okB, err := activeAgentTimerOnIssue(ctxB, st, u.ID, issue.ID)
+	if err != nil || !okB {
+		t.Fatalf("actor b should see its timer: ok=%v err=%v", okB, err)
+	}
+	plainCtx := context.Background()
+	okPlain, err := activeAgentTimerOnIssue(plainCtx, st, u.ID, issue.ID)
+	if err != nil {
+		t.Fatalf("activeAgentTimerOnIssue plain: %v", err)
+	}
+	if okPlain {
+		t.Fatal("legacy ctx (no actor) should not match named-agent timers")
 	}
 }

@@ -16,7 +16,7 @@ Set environment variable **`YAITRACKER_STRICT_AGENT_WORKFLOW=false`** (or `0`, `
 ## Parallel agents (one human, multiple issues)
 
 - **`begin_work` does not stop** agent timers on **other** issues for the same user. You can have one agent timer per issue across several tickets.
-- **One agent per ticket:** do not run two agents on the **same** issue at once; split work into subtasks instead.
+- **MCP over HTTP — concurrent agents on the same issue:** send header **`X-Yaitracker-Mcp-Actor-Id`** with a stable per-client value (e.g. `cursor-workspace-a` vs `cursor-workspace-b`). The server stores it on the agent `time_entry` and enforces **one open agent timer per (issue, actor id)**. **`complete_work`** and **`stop_timer`** (when addressing an issue by `project_key` + `number`) only stop the timer for the **same** header value; omitting the header only matches **legacy** timers with no actor id (stdio MCP and older clients).
 - **Work session:** there is still at most **one** active `work_sessions` row per user. The default policy (**1a**) is not to overwrite that session’s description on every `begin_work` when a session already exists, so parallel agents do not fight over the same row.
 
 ## Cursor shell hooks (this repository)
