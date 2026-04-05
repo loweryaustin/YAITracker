@@ -7,7 +7,18 @@ alwaysApply: true
 
 The YAITracker MCP server (project key: **YAIT** in this repo) tracks agent work. Use `begin_work` and `complete_work` as the primary tools. The **server** enforces that `complete_work` runs only when an active agent timer exists on the issue (unless `YAITRACKER_STRICT_AGENT_WORKFLOW` is disabled on the server). See [docs/mcp-agent-workflow.md](../docs/mcp-agent-workflow.md) for product behavior; this file is contributor guidance for **this** codebase.
 
-## Starting Work
+## Mandatory for agents (blocking)
+
+When the YAITracker MCP server is enabled for this workspace:
+
+1. **Before** substantive work on an issue (edits, tests, `make`, shell that mutates the tree): call **`begin_work(project_key: "YAIT", number: <N>)`** for that issue. Hooks may block until this is done.
+2. **Before** declaring the issue finished or opening the final PR: call **`complete_work(project_key: "YAIT", number: <N>, summary: "<what changed>")`**. Do not skip this because the “code is merged”; the tracker must reflect reality.
+3. If work spans multiple issues, **`begin_work`** on the issue you are actively touching; **`complete_work`** before switching away for good.
+4. If MCP is unavailable (server down, tool errors): **`create_issue`** or **`add_comment`** when back online, or document blocker in the PR—do not silently omit tracker updates.
+
+Skipping `begin_work` / `complete_work` when MCP works is a **process failure**, not an optional optimization.
+
+## Starting work
 
 ```
 begin_work(project_key: "YAIT", number: <N>)
@@ -17,7 +28,7 @@ This single call: ensures a work session exists, moves the issue to `in_progress
 
 In **this** repo, Cursor `beforeShellExecution` may **block terminal commands** until `begin_work` has run (see `scripts/cursor-hooks/` and [docs/mcp-agent-workflow.md](../docs/mcp-agent-workflow.md)). Call `begin_work` **before** `go test`, `make`, etc. Overrides: `YAIT_HOOK_SKIP=1` or `.cursor/yait-hook-disable` (emergency only).
 
-## Finishing Work
+## Finishing work
 
 ```
 complete_work(project_key: "YAIT", number: <N>, summary: "<what changed>")
@@ -25,13 +36,13 @@ complete_work(project_key: "YAIT", number: <N>, summary: "<what changed>")
 
 This single call: stops the timer, adds a completion comment, and moves the issue to `done`.
 
-## During Work
+## During work
 
 - `add_comment` only for significant decisions, blockers, or scope changes -- not routine progress
 - `create_issue` immediately when new work is discovered (never defer) -- include type, priority, story_points, estimated_hours
 - If switching issues, call `begin_work` on the new issue
 
-## Session Management
+## Session management
 
 - `begin_work` auto-creates a session if none is active -- explicit `start_session` is only needed for sessions not tied to a specific issue
 - `end_session` when the human is done for the day (auto-stops running timers)
@@ -41,19 +52,20 @@ This single call: stops the timer, adds a completion comment, and moves the issu
 - Every issue: `story_points` (fibonacci: 1,2,3,5,8,13) + `estimated_hours`
 - If actual time exceeds estimate by >2x, `add_comment` reflecting on why
 
-## Health Checks
+## Health checks
 
 Only meaningful with >=10 completed issues. When appropriate:
 - `get_project_health` / `get_velocity` / `get_estimation_accuracy`
 
-## Issue Quality
+## Issue quality
 
 - Titles: imperative mood, concise
 - Descriptions: context (why), acceptance criteria, affected interfaces (MCP/API/UI)
 - Types: bug, task, feature, improvement
 - Priorities: urgent (prod down), high (blocks work), medium (next sprint), low (backlog)
 
-## Git Integration
+## Git integration (must match `.cursor/rules/git-workflow.mdc`)
 
-- Branch names reference the issue: `feature/YAIT-N-short-description`
-- Commit body includes `Refs: YAIT-N` or `Refs: none` (see `.githooks/commit-msg`)
+- Branch names include the issue: `feature/YAIT-N-short-description` or `fix/YAIT-N-short-description`
+- Every commit body: `Refs: YAIT-N` or `Refs: none` (see `.githooks/commit-msg`)
+- Land changes via **PR to `develop`** (or release/hotfix flows on `git-workflow.mdc`); never push ad-hoc commits to `origin/develop` or `origin/master`

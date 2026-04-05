@@ -159,7 +159,7 @@ func TestDeleteProject_cascadesChildData(t *testing.T) {
 		t.Fatalf("CreateComment: %v", err)
 	}
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}

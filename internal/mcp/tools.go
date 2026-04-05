@@ -634,6 +634,30 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 	}
 }
 
+// resolveOrCreateLabel returns an existing project label by name or creates it.
+// If two callers create the same name concurrently, CreateLabel may fail on the
+// unique (project_id, name) constraint; we then load the row another writer inserted.
+func resolveOrCreateLabel(ctx context.Context, st *store.Store, projectID, labelName, color string) (*model.Label, error) {
+	lbl, err := st.GetLabelByName(ctx, projectID, labelName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup label: %w", err)
+	}
+	if lbl != nil {
+		return lbl, nil
+	}
+	lbl = &model.Label{ProjectID: projectID, Name: labelName, Color: color}
+	if err := st.CreateLabel(ctx, lbl); err != nil {
+		lbl, lookupErr := st.GetLabelByName(ctx, projectID, labelName)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("create label: %w", err)
+		}
+		if lbl == nil {
+			return nil, fmt.Errorf("create label: %w", err)
+		}
+	}
+	return lbl, nil
+}
+
 func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		key := mcp.ParseString(req, "project_key", "")
@@ -657,15 +681,9 @@ func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 			color = "#64748b"
 		}
 
-		lbl, err := st.GetLabelByName(ctx, p.ID, labelName)
+		lbl, err := resolveOrCreateLabel(ctx, st, p.ID, labelName, color)
 		if err != nil {
-			return errResult(fmt.Errorf("lookup label: %w", err)), nil
-		}
-		if lbl == nil {
-			lbl = &model.Label{ProjectID: p.ID, Name: labelName, Color: color}
-			if err := st.CreateLabel(ctx, lbl); err != nil {
-				return errResult(fmt.Errorf("create label: %w", err)), nil
-			}
+			return errResult(err), nil
 		}
 
 		if err := st.AddIssueLabel(ctx, issue.ID, lbl.ID); err != nil {
@@ -755,7 +773,7 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 			if err != nil {
 				return errResult(fmt.Errorf("get issue: %w", err)), nil
 			}
-			entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
+			entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc, auth.MCPActorIDFromContext(ctx))
 			if err != nil {
 				return errResult(fmt.Errorf("start timer: %w", err)), nil
 			}
@@ -808,15 +826,29 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 			if err != nil {
 				return errResult(fmt.Errorf("get active timers: %w", err)), nil
 			}
+			actorCtx := auth.MCPActorIDFromContext(ctx)
 			for _, t := range timers {
-				if t.IssueID == issue.ID && (actorFilter == "" || t.ActorType == actorFilter) {
-					entry, err := st.StopTimerByID(ctx, t.ID)
-					if err != nil {
-						return errResult(fmt.Errorf("stop timer: %w", err)), nil
-					}
-					durationMin := float64(*entry.Duration) / 60
-					return textResult(fmt.Sprintf("Timer stopped on %s-%d (%s). Duration: %.1f minutes", key, number, entry.ActorType, durationMin)), nil
+				if t.IssueID != issue.ID {
+					continue
 				}
+				if actorFilter != "" && t.ActorType != actorFilter {
+					continue
+				}
+				if t.ActorType == "agent" {
+					if actorCtx != "" {
+						if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+							continue
+						}
+					} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+						continue
+					}
+				}
+				entry, err := st.StopTimerByID(ctx, t.ID)
+				if err != nil {
+					return errResult(fmt.Errorf("stop timer: %w", err)), nil
+				}
+				durationMin := float64(*entry.Duration) / 60
+				return textResult(fmt.Sprintf("Timer stopped on %s-%d (%s). Duration: %.1f minutes", key, number, entry.ActorType, durationMin)), nil
 			}
 			return errResult(fmt.Errorf("no active timer found on %s-%d", key, number)), nil
 		}
@@ -1018,15 +1050,24 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 			}
 		}
 
-		// Stop active timer(s) on this issue.
+		// Stop this MCP actor's agent timer(s) on this issue (same matching rules as activeAgentTimerOnIssue).
 		var durationSec int64
+		actorCtx := auth.MCPActorIDFromContext(ctx)
 		timers, _ := st.GetActiveTimers(ctx, userID)
 		for _, t := range timers {
-			if t.IssueID == issue.ID {
-				stopped, err := st.StopTimerByID(ctx, t.ID)
-				if err == nil && stopped.Duration != nil {
-					durationSec += *stopped.Duration
+			if t.IssueID != issue.ID || t.ActorType != "agent" {
+				continue
+			}
+			if actorCtx != "" {
+				if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+					continue
 				}
+			} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+				continue
+			}
+			stopped, err := st.StopTimerByID(ctx, t.ID)
+			if err == nil && stopped.Duration != nil {
+				durationSec += *stopped.Duration
 			}
 		}
 
