@@ -43,20 +43,22 @@ func TestActiveAgentTimerOnIssue(t *testing.T) {
 	st := testutil.NewTestStore(t)
 	p, u := testutil.SeedProject(t, st, "WFMC")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "wf")
 
 	ok, err := activeAgentTimerOnIssue(ctx, st, u.ID, issue.ID)
 	if err != nil {
 		t.Fatalf("activeAgentTimerOnIssue: %v", err)
 	}
 	if ok {
-		t.Fatal("expected no active agent timer")
+		t.Fatal("expected no active agent timer (no actor in context)")
 	}
 
-	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", ""); err != nil {
+	ctxActor := auth.ContextWithMCPActorID(ctx, actor.ID)
+	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID); err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}
 
-	ok, err = activeAgentTimerOnIssue(ctx, st, u.ID, issue.ID)
+	ok, err = activeAgentTimerOnIssue(ctxActor, st, u.ID, issue.ID)
 	if err != nil {
 		t.Fatalf("activeAgentTimerOnIssue: %v", err)
 	}
@@ -72,6 +74,8 @@ func TestBeginAgentWorkStartsTimer(t *testing.T) {
 	st := testutil.NewTestStore(t)
 	p, u := testutil.SeedProject(t, st, "BGAW")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "bg")
+	ctx = auth.ContextWithMCPActorID(ctx, actor.ID)
 
 	iss, entry, _, err := beginAgentWork(ctx, st, u.ID, p.Key, issue.Number, "")
 	if err != nil {
@@ -101,6 +105,8 @@ func TestBeginAgentWorkTwoIssuesTwoAgentTimers(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "TWOI")
 	a := testutil.SeedIssue(t, st, p.ID, u.ID)
 	b := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "two")
+	ctx = auth.ContextWithMCPActorID(ctx, actor.ID)
 
 	if _, _, _, err := beginAgentWork(ctx, st, u.ID, p.Key, a.Number, ""); err != nil {
 		t.Fatalf("beginAgentWork A: %v", err)
@@ -141,6 +147,8 @@ func TestStoppingTimerOnOneIssueLeavesOtherIssueTimer(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "STOP")
 	a := testutil.SeedIssue(t, st, p.ID, u.ID)
 	b := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "stop")
+	ctx = auth.ContextWithMCPActorID(ctx, actor.ID)
 
 	_, entryA, _, err := beginAgentWork(ctx, st, u.ID, p.Key, a.Number, "")
 	if err != nil {
@@ -174,14 +182,16 @@ func TestBeginAgentWorkDistinctMcpActorsSameIssue(t *testing.T) {
 	st := testutil.NewTestStore(t)
 	p, u := testutil.SeedProject(t, st, "MCP2")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actA := testutil.SeedMCPActor(t, st, u.ID, "a")
+	actB := testutil.SeedMCPActor(t, st, u.ID, "b")
 
-	ctxA := auth.ContextWithMCPActorID(ctx, "cursor-a")
+	ctxA := auth.ContextWithMCPActorID(ctx, actA.ID)
 	_, e1, _, err := beginAgentWork(ctxA, st, u.ID, p.Key, issue.Number, "")
 	if err != nil {
 		t.Fatalf("beginAgentWork a: %v", err)
 	}
 
-	ctxB := auth.ContextWithMCPActorID(ctx, "cursor-b")
+	ctxB := auth.ContextWithMCPActorID(ctx, actB.ID)
 	_, e2, _, err := beginAgentWork(ctxB, st, u.ID, p.Key, issue.Number, "")
 	if err != nil {
 		t.Fatalf("beginAgentWork b: %v", err)
@@ -208,6 +218,6 @@ func TestBeginAgentWorkDistinctMcpActorsSameIssue(t *testing.T) {
 		t.Fatalf("activeAgentTimerOnIssue plain: %v", err)
 	}
 	if okPlain {
-		t.Fatal("legacy ctx (no actor) should not match named-agent timers")
+		t.Fatal("ctx without actor id should not match agent timers")
 	}
 }

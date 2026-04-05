@@ -44,8 +44,8 @@ type IssueFilter struct {
 }
 
 var (
-	IssueStatuses  = []string{"backlog", "todo", "in_progress", "in_review", "done", "cancelled"}
-	IssueTypes     = []string{"bug", "task", "feature", "improvement"}
+	IssueStatuses   = []string{"backlog", "todo", "in_progress", "in_review", "done", "cancelled"}
+	IssueTypes      = []string{"bug", "task", "feature", "improvement"}
 	IssuePriorities = []string{"none", "low", "medium", "high", "urgent"}
 )
 

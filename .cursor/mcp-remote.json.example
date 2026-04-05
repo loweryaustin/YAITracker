@@ -3,7 +3,8 @@
     "yaitracker": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer <YOUR_MCP_BEARER_TOKEN>"
+        "Authorization": "Bearer <YOUR_MCP_BEARER_TOKEN>",
+        "X-Yaitracker-Mcp-Actor-Id": "<id from POST /api/v1/mcp/actors>"
       }
     }
   }

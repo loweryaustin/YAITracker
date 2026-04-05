@@ -123,3 +123,13 @@ func SeedIssue(t *testing.T, st *store.Store, projectID, reporterID string) *mod
 	}
 	return issue
 }
+
+// SeedMCPActor registers an MCP actor for the user and returns it.
+func SeedMCPActor(t *testing.T, st *store.Store, userID, label string) *model.MCPActor {
+	t.Helper()
+	a, err := st.CreateMCPActor(context.Background(), userID, label)
+	if err != nil {
+		t.Fatalf("testutil.SeedMCPActor: %v", err)
+	}
+	return a
+}

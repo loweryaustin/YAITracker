@@ -170,4 +170,3 @@ func formatMinutes(m float64) string {
 	}
 	return strconv.Itoa(int(m)) + " minutes"
 }
-

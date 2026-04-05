@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeMCPExecution": [
+      {
+        "command": "/absolute/path/to/YAITracker/scripts/cursor-hooks/before-mcp.sh"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "/absolute/path/to/YAITracker/scripts/cursor-hooks/before-shell.sh"
+      }
+    ]
+  }
+}

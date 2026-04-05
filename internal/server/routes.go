@@ -140,6 +140,11 @@ func (s *Server) Router() http.Handler {
 			r.Get("/auth/me", a.GetMe)
 			r.Delete("/auth/token", a.DeleteToken)
 
+			r.Post("/mcp/actors", a.PostMCPActor)
+			r.Get("/mcp/actors", a.ListMCPActors)
+			r.Post("/mcp/actors/{id}/heartbeat", a.PostMCPActorHeartbeat)
+			r.Delete("/mcp/actors/{id}", a.DeleteMCPActor)
+
 			r.Get("/projects", a.ListProjects)
 			r.Post("/projects", a.CreateProject)
 			r.Get("/projects/{key}", a.GetProject)
@@ -210,4 +215,3 @@ func (s *Server) Router() http.Handler {
 
 	return r
 }
-
