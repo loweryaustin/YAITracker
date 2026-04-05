@@ -32,8 +32,10 @@ required variables. The compose file `deploy/docker-compose.prod.yml` uses only
 - **NEVER** guess at volume mount paths. The canonical path is in `deploy/.env`.
 - **ALWAYS** verify the health check passes after deploy.
 - **ALWAYS** confirm the database file exists and is non-empty after deploy.
-- Before deploying, the release must be tagged on `master` per the git workflow
-  and semver rules.
+- Before deploying, complete the release flow in `semver-changelog.mdc` (merge
+  `release/vX.Y.Z` into `master`, then tag). The deploy script refuses `VERSION`
+  unless that tag exists and is an **ancestor of local `master`** — do not deploy
+  from a feature-branch tip or a tag that only points at a feature branch.
 
 ## Ad-hoc Operations
 

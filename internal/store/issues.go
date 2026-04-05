@@ -312,6 +312,48 @@ func (s *Store) DeleteIssue(ctx context.Context, id string) error {
 	})
 }
 
+// MapIssueIDToNumber returns every issue id in the project mapped to its display number.
+func (s *Store) MapIssueIDToNumber(ctx context.Context, projectID string) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, number FROM issues WHERE project_id = ?`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string]int)
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
+
+// MapParentIDToChildNumbers maps each parent issue id to its direct children's issue numbers (sorted by number).
+func (s *Store) MapParentIDToChildNumbers(ctx context.Context, projectID string) (map[string][]int, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT parent_id, number FROM issues WHERE project_id = ? AND parent_id IS NOT NULL ORDER BY number`,
+		projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[string][]int)
+	for rows.Next() {
+		var pid string
+		var n int
+		if err := rows.Scan(&pid, &n); err != nil {
+			return nil, err
+		}
+		out[pid] = append(out[pid], n)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetChildIssues(ctx context.Context, parentID string) ([]model.Issue, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, project_id, number, title, description, type, status, priority,

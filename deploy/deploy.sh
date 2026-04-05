@@ -36,6 +36,12 @@ ssh -o ConnectTimeout=5 "$DEPLOY_HOST" true || die "Cannot SSH to $DEPLOY_HOST"
 info "Pre-flight: verifying data directory exists on remote..."
 ssh "$DEPLOY_HOST" "[ -d '$DEPLOY_DATA_DIR' ]" || die "Data directory $DEPLOY_DATA_DIR does not exist on $DEPLOY_HOST"
 
+cd "$REPO_DIR" || die "cannot cd to $REPO_DIR"
+info "Pre-flight: verifying $VERSION is a tag reachable from master..."
+git rev-parse "$VERSION^{commit}" >/dev/null 2>&1 || die "Git tag $VERSION not found. Create it on master after the release merge (see .cursor/rules/semver-changelog.mdc)."
+git show-ref --verify --quiet refs/heads/master || die "Local branch master is required for deploy verification"
+git merge-base --is-ancestor "$VERSION" master || die "Tag $VERSION is not an ancestor of local master — deploy only after merging the release branch to master, not from a feature tip"
+
 # ── Build image ──────────────────────────────────────
 info "Building Docker image $IMAGE..."
 docker build -t "$IMAGE" -t yaitracker:latest "$REPO_DIR"

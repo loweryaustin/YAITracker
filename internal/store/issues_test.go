@@ -187,3 +187,51 @@ func TestListIssues(t *testing.T) {
 		t.Errorf("ListIssues() returned %d issues, want 3", len(issues))
 	}
 }
+
+func TestMapIssueIDToNumberAndChildNumbers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st := testutil.NewTestStore(t)
+	p, u := testutil.SeedProject(t, st, "MAP")
+
+	parent := &model.Issue{
+		ProjectID:  p.ID,
+		Title:      "parent",
+		Type:       "task",
+		Status:     "backlog",
+		Priority:   "medium",
+		ReporterID: u.ID,
+	}
+	if err := st.CreateIssue(ctx, parent); err != nil {
+		t.Fatalf("CreateIssue parent: %v", err)
+	}
+	child := &model.Issue{
+		ProjectID:  p.ID,
+		Title:      "child",
+		Type:       "task",
+		Status:     "backlog",
+		Priority:   "medium",
+		ReporterID: u.ID,
+		ParentID:   &parent.ID,
+	}
+	if err := st.CreateIssue(ctx, child); err != nil {
+		t.Fatalf("CreateIssue child: %v", err)
+	}
+
+	idToNum, err := st.MapIssueIDToNumber(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("MapIssueIDToNumber: %v", err)
+	}
+	if idToNum[parent.ID] != parent.Number || idToNum[child.ID] != child.Number {
+		t.Fatalf("MapIssueIDToNumber = %v, want parent %d child %d", idToNum, parent.Number, child.Number)
+	}
+
+	byParent, err := st.MapParentIDToChildNumbers(ctx, p.ID)
+	if err != nil {
+		t.Fatalf("MapParentIDToChildNumbers: %v", err)
+	}
+	kids := byParent[parent.ID]
+	if len(kids) != 1 || kids[0] != child.Number {
+		t.Fatalf("child numbers = %v, want [%d]", kids, child.Number)
+	}
+}

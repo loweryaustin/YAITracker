@@ -47,13 +47,13 @@ var projectAnalyticsTpl = template.Must(template.New("project-analytics").Funcs(
             <span class="text-sm">{{printf "%.0f" $h.ProgressPercent}}% done</span>
         </div>
         <div class="flex items-center gap-6 text-sm">
-            {{if gt $h.BudgetTotal 0}}
+            {{if gtF $h.BudgetTotal 0.0}}
             <span>Budget: {{printf "%.0f" $h.BudgetUsed}} / {{printf "%.0f" $h.BudgetTotal}}h</span>
             {{end}}
             <span>Velocity: {{printf "%.1f" $h.AvgVelocity}} pts/wk
                 {{if eq $h.VelocityTrend "up"}}↑{{else if eq $h.VelocityTrend "down"}}↓{{else}}→{{end}}
             </span>
-            {{if gt $h.DaysRemaining 0}}
+            {{if gtI $h.DaysRemaining 0}}
             <span>{{$h.DaysRemaining}} days left</span>
             {{end}}
         </div>
@@ -71,7 +71,7 @@ var projectAnalyticsTpl = template.Must(template.New("project-analytics").Funcs(
                 <span class="text-xs text-slate-400 w-20">{{.WeekStart.Format "Jan 2"}}</span>
                 <div class="flex-1 bg-slate-100 rounded-full h-4">
                     <div class="bg-blue-500 h-4 rounded-full text-xs text-white flex items-center justify-center"
-                         style="width: {{if gt .Points 0}}{{min (mul .Points 10) 100}}{{else}}0{{end}}%">
+                         style="width: {{if gtI .Points 0}}{{min (mul .Points 10) 100}}{{else}}0{{end}}%">
                         {{.Points}}pts
                     </div>
                 </div>
@@ -109,7 +109,7 @@ var projectAnalyticsTpl = template.Must(template.New("project-analytics").Funcs(
     <div class="bg-white rounded-lg border border-slate-200 p-4">
         <h3 class="text-sm font-medium text-slate-500 uppercase tracking-wide mb-3">Estimation Accuracy</h3>
         {{$e := .Content.Estimation}}
-        {{if gt $e.SampleSize 0}}
+        {{if gtI $e.SampleSize 0}}
         <div class="space-y-2 text-sm">
             <div class="flex justify-between"><span>Avg ratio (actual/estimated):</span><span class="font-medium">{{printf "%.1fx" $e.AvgRatio}}</span></div>
             <div class="flex justify-between"><span>Hours per point:</span><span class="font-medium">{{printf "%.1f" $e.HoursPerPoint}}h</span></div>
@@ -272,7 +272,7 @@ var predictTpl = template.Must(template.New("predict").Funcs(funcMap).Parse(appL
     </div>
     <div>
         <label class="block text-sm font-medium text-slate-700 mb-1">Estimated Story Points</label>
-        <input type="number" name="points" value="{{if gt .Content.Points 0}}{{.Content.Points}}{{end}}" min="1" placeholder="120"
+        <input type="number" name="points" value="{{if gtI .Content.Points 0}}{{.Content.Points}}{{end}}" min="1" placeholder="120"
                class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
     </div>
     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm">Calculate Prediction</button>

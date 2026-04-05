@@ -48,6 +48,7 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Keep "version" in sync with GOLANGCI_LINT_VER in Makefile.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
@@ -63,8 +64,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Keep tag in sync with GOVULNCHECK_VER in Makefile.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck
         run: govulncheck ./...

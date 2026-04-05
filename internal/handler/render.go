@@ -19,24 +19,52 @@ var funcMap = template.FuncMap{
 	"contains":       contains,
 	"statusColor":    StatusColor,
 	"priorityColor":  PriorityColor,
-	"deref":          func(i *int) int { if i != nil { return *i }; return 0 },
-	"derefStr":       func(s *string) string { if s != nil { return *s }; return "" },
-	"derefFloat":     func(f *float64) float64 { if f != nil { return *f }; return 0 },
-	"derefInt64":     func(i *int64) int64 { if i != nil { return *i }; return 0 },
-	"statuses":       func() []string { return model.IssueStatuses },
-	"types":          func() []string { return model.IssueTypes },
-	"priorities":     func() []string { return model.IssuePriorities },
+	"deref": func(i *int) int {
+		if i != nil {
+			return *i
+		}
+		return 0
+	},
+	"derefStr": func(s *string) string {
+		if s != nil {
+			return *s
+		}
+		return ""
+	},
+	"derefFloat": func(f *float64) float64 {
+		if f != nil {
+			return *f
+		}
+		return 0
+	},
+	"derefInt64": func(i *int64) int64 {
+		if i != nil {
+			return *i
+		}
+		return 0
+	},
+	"statuses":   func() []string { return model.IssueStatuses },
+	"types":      func() []string { return model.IssueTypes },
+	"priorities": func() []string { return model.IssuePriorities },
 	"budgetPct": func(totalSecs int64, estHours float64) float64 {
 		if estHours <= 0 {
 			return 0
 		}
 		return float64(totalSecs) / (estHours * 3600) * 100
 	},
-	"subtract":       func(a, b int) int { return a - b },
-	"add":            func(a, b int) int { return a + b },
-	"hasMore":        func(total, page, perPage int) bool { return page*perPage < total },
-	"min":            func(a, b int) int { if a < b { return a }; return b },
-	"mul":            func(a, b int) int { return a * b },
+	"subtract": func(a, b int) int { return a - b },
+	"add":      func(a, b int) int { return a + b },
+	"hasMore":  func(total, page, perPage int) bool { return page*perPage < total },
+	"min": func(a, b int) int {
+		if a < b {
+			return a
+		}
+		return b
+	},
+	"mul": func(a, b int) int { return a * b },
+	// gt in text/template requires identical types; use gtI/gtF to avoid float64/int mismatches.
+	"gtI": func(a, b int) bool { return a > b },
+	"gtF": func(a, b float64) bool { return a > b },
 	"statusDot": func(status string) string {
 		switch status {
 		case "backlog":
