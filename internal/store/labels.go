@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"yaitracker.com/loweryaustin/internal/model"
 )
@@ -27,6 +28,27 @@ func (s *Store) GetLabel(ctx context.Context, id string) (*model.Label, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("label not found")
+		}
+		return nil, err
+	}
+	return &l, nil
+}
+
+// GetLabelByName returns the label in the project with the given name, compared case-insensitively.
+// If no row matches, it returns nil, nil.
+func (s *Store) GetLabelByName(ctx context.Context, projectID, name string) (*model.Label, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, nil
+	}
+	var l model.Label
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, project_id, name, color FROM labels WHERE project_id = ? AND lower(name) = lower(?)`,
+		projectID, name,
+	).Scan(&l.ID, &l.ProjectID, &l.Name, &l.Color)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -110,4 +132,3 @@ func (s *Store) GetIssueLabels(ctx context.Context, issueID string) ([]model.Lab
 	}
 	return labels, rows.Err()
 }
-

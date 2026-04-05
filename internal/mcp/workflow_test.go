@@ -91,3 +91,77 @@ func TestBeginAgentWorkStartsTimer(t *testing.T) {
 		t.Fatal("beginAgentWork should leave active agent timer")
 	}
 }
+
+func TestBeginAgentWorkTwoIssuesTwoAgentTimers(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	st := testutil.NewTestStore(t)
+	p, u := testutil.SeedProject(t, st, "TWOI")
+	a := testutil.SeedIssue(t, st, p.ID, u.ID)
+	b := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	if _, _, _, err := beginAgentWork(ctx, st, u.ID, p.Key, a.Number, ""); err != nil {
+		t.Fatalf("beginAgentWork A: %v", err)
+	}
+	if _, _, _, err := beginAgentWork(ctx, st, u.ID, p.Key, b.Number, ""); err != nil {
+		t.Fatalf("beginAgentWork B: %v", err)
+	}
+
+	timers, err := st.GetActiveTimers(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("GetActiveTimers: %v", err)
+	}
+	var agentCount int
+	for i := range timers {
+		if timers[i].ActorType == "agent" {
+			agentCount++
+		}
+	}
+	if agentCount != 2 {
+		t.Fatalf("want 2 active agent timers, got %d", agentCount)
+	}
+
+	okA, err := activeAgentTimerOnIssue(ctx, st, u.ID, a.ID)
+	if err != nil || !okA {
+		t.Fatalf("issue A should have agent timer: ok=%v err=%v", okA, err)
+	}
+	okB, err := activeAgentTimerOnIssue(ctx, st, u.ID, b.ID)
+	if err != nil || !okB {
+		t.Fatalf("issue B should have agent timer: ok=%v err=%v", okB, err)
+	}
+}
+
+func TestStoppingTimerOnOneIssueLeavesOtherIssueTimer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	st := testutil.NewTestStore(t)
+	p, u := testutil.SeedProject(t, st, "STOP")
+	a := testutil.SeedIssue(t, st, p.ID, u.ID)
+	b := testutil.SeedIssue(t, st, p.ID, u.ID)
+
+	_, entryA, _, err := beginAgentWork(ctx, st, u.ID, p.Key, a.Number, "")
+	if err != nil {
+		t.Fatalf("beginAgentWork A: %v", err)
+	}
+	if _, _, _, err := beginAgentWork(ctx, st, u.ID, p.Key, b.Number, ""); err != nil {
+		t.Fatalf("beginAgentWork B: %v", err)
+	}
+
+	if _, err := st.StopTimerByID(ctx, entryA.ID); err != nil {
+		t.Fatalf("StopTimerByID A: %v", err)
+	}
+
+	okA, err := activeAgentTimerOnIssue(ctx, st, u.ID, a.ID)
+	if err != nil {
+		t.Fatalf("activeAgentTimerOnIssue A: %v", err)
+	}
+	if okA {
+		t.Fatal("issue A timer should be stopped")
+	}
+	okB, err := activeAgentTimerOnIssue(ctx, st, u.ID, b.ID)
+	if err != nil || !okB {
+		t.Fatalf("issue B should still have agent timer: ok=%v err=%v", okB, err)
+	}
+}

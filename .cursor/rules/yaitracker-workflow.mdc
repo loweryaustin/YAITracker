@@ -15,6 +15,8 @@ begin_work(project_key: "YAIT", number: <N>)
 
 This single call: ensures a work session exists, moves the issue to `in_progress`, and starts an agent timer. Returns the `timer_id`.
 
+In **this** repo, Cursor `beforeShellExecution` may **block terminal commands** until `begin_work` has run (see `scripts/cursor-hooks/` and [docs/mcp-agent-workflow.md](../docs/mcp-agent-workflow.md)). Call `begin_work` **before** `go test`, `make`, etc. Overrides: `YAIT_HOOK_SKIP=1` or `.cursor/yait-hook-disable` (emergency only).
+
 ## Finishing Work
 
 ```

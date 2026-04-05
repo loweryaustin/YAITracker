@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cursor beforeShellExecution hook (beta). Reads JSON from stdin; prints allow/deny JSON.
-# Git discipline uses .githooks (commit-msg, pre-push). This hook does not block commands.
+# Cursor beforeShellExecution: require begin_work lock (see yait_before_shell.py).
 set -euo pipefail
-cat >/dev/null || true
-printf '%s\n' '{"permission":"allow"}'
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export YAITRACKER_REPO_ROOT="$REPO_ROOT"
+exec python3 "$REPO_ROOT/scripts/cursor-hooks/yait_before_shell.py"
