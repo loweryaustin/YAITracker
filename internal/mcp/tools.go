@@ -773,7 +773,7 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 			if err != nil {
 				return errResult(fmt.Errorf("get issue: %w", err)), nil
 			}
-			entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc)
+			entry, err := st.StartTimer(ctx, issue.ID, userID, "agent", "", desc, auth.MCPActorIDFromContext(ctx))
 			if err != nil {
 				return errResult(fmt.Errorf("start timer: %w", err)), nil
 			}
@@ -826,15 +826,29 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 			if err != nil {
 				return errResult(fmt.Errorf("get active timers: %w", err)), nil
 			}
+			actorCtx := auth.MCPActorIDFromContext(ctx)
 			for _, t := range timers {
-				if t.IssueID == issue.ID && (actorFilter == "" || t.ActorType == actorFilter) {
-					entry, err := st.StopTimerByID(ctx, t.ID)
-					if err != nil {
-						return errResult(fmt.Errorf("stop timer: %w", err)), nil
-					}
-					durationMin := float64(*entry.Duration) / 60
-					return textResult(fmt.Sprintf("Timer stopped on %s-%d (%s). Duration: %.1f minutes", key, number, entry.ActorType, durationMin)), nil
+				if t.IssueID != issue.ID {
+					continue
 				}
+				if actorFilter != "" && t.ActorType != actorFilter {
+					continue
+				}
+				if t.ActorType == "agent" {
+					if actorCtx != "" {
+						if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+							continue
+						}
+					} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+						continue
+					}
+				}
+				entry, err := st.StopTimerByID(ctx, t.ID)
+				if err != nil {
+					return errResult(fmt.Errorf("stop timer: %w", err)), nil
+				}
+				durationMin := float64(*entry.Duration) / 60
+				return textResult(fmt.Sprintf("Timer stopped on %s-%d (%s). Duration: %.1f minutes", key, number, entry.ActorType, durationMin)), nil
 			}
 			return errResult(fmt.Errorf("no active timer found on %s-%d", key, number)), nil
 		}
@@ -1036,15 +1050,24 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 			}
 		}
 
-		// Stop active timer(s) on this issue.
+		// Stop this MCP actor's agent timer(s) on this issue (same matching rules as activeAgentTimerOnIssue).
 		var durationSec int64
+		actorCtx := auth.MCPActorIDFromContext(ctx)
 		timers, _ := st.GetActiveTimers(ctx, userID)
 		for _, t := range timers {
-			if t.IssueID == issue.ID {
-				stopped, err := st.StopTimerByID(ctx, t.ID)
-				if err == nil && stopped.Duration != nil {
-					durationSec += *stopped.Duration
+			if t.IssueID != issue.ID || t.ActorType != "agent" {
+				continue
+			}
+			if actorCtx != "" {
+				if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+					continue
 				}
+			} else if auth.NormalizeMCPActorID(t.McpActorID) != "" {
+				continue
+			}
+			stopped, err := st.StopTimerByID(ctx, t.ID)
+			if err == nil && stopped.Duration != nil {
+				durationSec += *stopped.Duration
 			}
 		}
 

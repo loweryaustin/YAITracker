@@ -4,14 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"yaitracker.com/loweryaustin/internal/model"
 )
 
-func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sessionID, description string) (*model.TimeEntry, error) {
+func normalizeMCPActorID(s string) string {
+	return strings.TrimSpace(s)
+}
+
+func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sessionID, description, mcpActorID string) (*model.TimeEntry, error) {
 	if actorType == "human" && sessionID == "" {
 		return nil, fmt.Errorf("human timer requires an active work session")
+	}
+
+	mcpActorID = normalizeMCPActorID(mcpActorID)
+	var mcpArg interface{}
+	if actorType == "agent" {
+		if mcpActorID != "" {
+			mcpArg = mcpActorID
+		} else {
+			mcpArg = nil
+		}
+	} else {
+		mcpArg = nil
 	}
 
 	entry := &model.TimeEntry{
@@ -20,6 +37,7 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 		UserID:      userID,
 		ActorType:   actorType,
 		SessionID:   sessionID,
+		McpActorID:  mcpActorID,
 		Description: description,
 		StartedAt:   time.Now().UTC(),
 		Source:      "timer",
@@ -50,11 +68,13 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 				return fmt.Errorf("check existing human timer: %w", err)
 			}
 		} else {
-			// Agent: reject if same issue already has an active agent timer
+			// Agent: reject if same issue already has an active agent timer for this MCP actor slot
+			// (legacy: mcp_actor_id NULL/empty shares one slot via ifnull(..., '')).
 			var existing string
 			err := tx.QueryRowContext(ctx,
 				`SELECT id FROM time_entries
-				 WHERE issue_id = ? AND actor_type = 'agent' AND ended_at IS NULL`, issueID,
+				 WHERE issue_id = ? AND actor_type = 'agent' AND ended_at IS NULL
+				   AND ifnull(mcp_actor_id, '') = ifnull(?, '')`, issueID, mcpArg,
 			).Scan(&existing)
 			if err == nil {
 				return fmt.Errorf("active agent timer already running on this issue (id: %s)", existing)
@@ -75,10 +95,10 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 		}
 
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO time_entries (id, issue_id, user_id, session_id, actor_type, description, started_at, source, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO time_entries (id, issue_id, user_id, session_id, actor_type, mcp_actor_id, description, started_at, source, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			entry.ID, entry.IssueID, entry.UserID,
-			sessID, entry.ActorType, desc,
+			sessID, entry.ActorType, mcpArg, desc,
 			entry.StartedAt, entry.Source,
 			entry.CreatedAt, entry.UpdatedAt,
 		)
@@ -127,11 +147,11 @@ func (s *Store) StopTimerByID(ctx context.Context, timerID string) (*model.TimeE
 	var entry model.TimeEntry
 	err := s.writeTx(ctx, func(tx *sql.Tx) error {
 		var startedAt time.Time
-		var sessionID sql.NullString
+		var sessionID, mcp sql.NullString
 		err := tx.QueryRowContext(ctx,
-			`SELECT id, issue_id, user_id, session_id, actor_type, started_at FROM time_entries
+			`SELECT id, issue_id, user_id, session_id, actor_type, mcp_actor_id, started_at FROM time_entries
 			 WHERE id = ? AND ended_at IS NULL`, timerID,
-		).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &startedAt)
+		).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &mcp, &startedAt)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("no active timer with id %s", timerID)
@@ -140,6 +160,9 @@ func (s *Store) StopTimerByID(ctx context.Context, timerID string) (*model.TimeE
 		}
 		if sessionID.Valid {
 			entry.SessionID = sessionID.String
+		}
+		if mcp.Valid {
+			entry.McpActorID = mcp.String
 		}
 
 		now := time.Now().UTC()
@@ -162,7 +185,7 @@ func (s *Store) StopTimerByID(ctx context.Context, timerID string) (*model.TimeE
 
 func (s *Store) GetActiveTimers(ctx context.Context, userID string) ([]model.TimeEntry, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, issue_id, user_id, session_id, actor_type, description, started_at, source, created_at, updated_at
+		`SELECT id, issue_id, user_id, session_id, actor_type, mcp_actor_id, description, started_at, source, created_at, updated_at
 		 FROM time_entries WHERE user_id = ? AND ended_at IS NULL ORDER BY started_at`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get active timers: %w", err)
@@ -172,13 +195,16 @@ func (s *Store) GetActiveTimers(ctx context.Context, userID string) ([]model.Tim
 	var entries []model.TimeEntry
 	for rows.Next() {
 		var e model.TimeEntry
-		var sessionID, desc sql.NullString
-		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType,
+		var sessionID, desc, mcp sql.NullString
+		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType, &mcp,
 			&desc, &e.StartedAt, &e.Source, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if sessionID.Valid {
 			e.SessionID = sessionID.String
+		}
+		if mcp.Valid {
+			e.McpActorID = mcp.String
 		}
 		if desc.Valid {
 			e.Description = desc.String
@@ -270,16 +296,20 @@ func (s *Store) GetTimeEntry(ctx context.Context, id string) (*model.TimeEntry, 
 	var endedAt sql.NullTime
 	var duration sql.NullInt64
 
+	var mcp sql.NullString
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, issue_id, user_id, session_id, actor_type, description, started_at, ended_at, duration, source, created_at, updated_at
+		`SELECT id, issue_id, user_id, session_id, actor_type, mcp_actor_id, description, started_at, ended_at, duration, source, created_at, updated_at
 		 FROM time_entries WHERE id = ?`, id,
-	).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &desc,
+	).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &mcp, &desc,
 		&entry.StartedAt, &endedAt, &duration, &entry.Source, &entry.CreatedAt, &entry.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("time entry not found")
 		}
 		return nil, err
+	}
+	if mcp.Valid {
+		entry.McpActorID = mcp.String
 	}
 	if desc.Valid {
 		entry.Description = desc.String
@@ -312,11 +342,11 @@ func (s *Store) ListTimeEntries(ctx context.Context, issueID string) ([]model.Ti
 	for rows.Next() {
 		var e model.TimeEntry
 		var u model.User
-		var desc, sessionID sql.NullString
+		var desc, sessionID, mcp sql.NullString
 		var endedAt sql.NullTime
 		var duration sql.NullInt64
 
-		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType,
+		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType, &mcp,
 			&desc, &e.StartedAt, &endedAt, &duration, &e.Source, &e.CreatedAt, &e.UpdatedAt,
 			&u.ID, &u.Name, &u.Email); err != nil {
 			return nil, err
@@ -326,6 +356,9 @@ func (s *Store) ListTimeEntries(ctx context.Context, issueID string) ([]model.Ti
 		}
 		if sessionID.Valid {
 			e.SessionID = sessionID.String
+		}
+		if mcp.Valid {
+			e.McpActorID = mcp.String
 		}
 		e.EndedAt = scanNullTime(endedAt)
 		if duration.Valid {
@@ -395,7 +428,7 @@ func (s *Store) GetDailySummary(ctx context.Context, userID string, date time.Ti
 
 func (s *Store) GetActiveTimersWithIssues(ctx context.Context, userID string) ([]model.TimeEntry, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT te.id, te.issue_id, te.user_id, te.session_id, te.actor_type,
+		`SELECT te.id, te.issue_id, te.user_id, te.session_id, te.actor_type, te.mcp_actor_id,
 		        te.description, te.started_at, te.source, te.created_at, te.updated_at,
 		        i.number, i.title, i.project_id, p.key
 		 FROM time_entries te
@@ -411,16 +444,19 @@ func (s *Store) GetActiveTimersWithIssues(ctx context.Context, userID string) ([
 	var entries []model.TimeEntry
 	for rows.Next() {
 		var e model.TimeEntry
-		var sessionID, desc sql.NullString
+		var sessionID, desc, mcp sql.NullString
 		var issueNumber int
 		var issueTitle, projectID, projectKey string
-		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType,
+		if err := rows.Scan(&e.ID, &e.IssueID, &e.UserID, &sessionID, &e.ActorType, &mcp,
 			&desc, &e.StartedAt, &e.Source, &e.CreatedAt, &e.UpdatedAt,
 			&issueNumber, &issueTitle, &projectID, &projectKey); err != nil {
 			return nil, err
 		}
 		if sessionID.Valid {
 			e.SessionID = sessionID.String
+		}
+		if mcp.Valid {
+			e.McpActorID = mcp.String
 		}
 		if desc.Valid {
 			e.Description = desc.String

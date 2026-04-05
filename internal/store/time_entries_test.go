@@ -16,7 +16,7 @@ func TestStartTimer_agent(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "AGNT")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(agent) error = %v", err)
 	}
@@ -43,7 +43,7 @@ func TestStartTimer_human(t *testing.T) {
 		t.Fatalf("CreateWorkSession() error = %v", err)
 	}
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(human) error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestStartTimer_humanRequiresSession(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "NSES")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	_, err := st.StartTimer(ctx, issue.ID, u.ID, "human", "", "")
+	_, err := st.StartTimer(ctx, issue.ID, u.ID, "human", "", "", "")
 	if err == nil {
 		t.Error("StartTimer(human) should reject when no session_id provided")
 	}
@@ -81,12 +81,12 @@ func TestStartTimer_humanAutoStopsPrevious(t *testing.T) {
 		t.Fatalf("CreateWorkSession() error = %v", err)
 	}
 
-	first, err := st.StartTimer(ctx, issue1.ID, u.ID, "human", ws.ID, "")
+	first, err := st.StartTimer(ctx, issue1.ID, u.ID, "human", ws.ID, "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(first) error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "human", ws.ID, "")
+	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "human", ws.ID, "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(second) error = %v", err)
 	}
@@ -111,12 +111,12 @@ func TestStartTimer_concurrentAgentTimers(t *testing.T) {
 	issue1 := testutil.SeedIssue(t, st, p.ID, u.ID)
 	issue2 := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	_, err := st.StartTimer(ctx, issue1.ID, u.ID, "agent", "", "")
+	_, err := st.StartTimer(ctx, issue1.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(agent, issue1) error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "")
+	_, err = st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(agent, issue2) error = %v, want nil (concurrent agent timers allowed)", err)
 	}
@@ -137,12 +137,12 @@ func TestStartTimer_rejectsDuplicateIssueAgent(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "DUPE")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	_, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	_, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer(first) error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	_, err = st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err == nil {
 		t.Error("StartTimer() should reject duplicate agent timer on same issue")
 	}
@@ -155,7 +155,7 @@ func TestStopTimerByID(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "STOP")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
@@ -187,10 +187,10 @@ func TestGetActiveTimers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWorkSession() error = %v", err)
 	}
-	if _, err := st.StartTimer(ctx, issue1.ID, u.ID, "human", ws.ID, ""); err != nil {
+	if _, err := st.StartTimer(ctx, issue1.ID, u.ID, "human", ws.ID, "", ""); err != nil {
 		t.Fatalf("StartTimer(human) error = %v", err)
 	}
-	if _, err := st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", ""); err != nil {
+	if _, err := st.StartTimer(ctx, issue2.ID, u.ID, "agent", "", "", ""); err != nil {
 		t.Fatalf("StartTimer(agent) error = %v", err)
 	}
 
@@ -214,7 +214,7 @@ func TestStopOrphanedTimers(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "ORPH")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
@@ -289,7 +289,9 @@ func TestGetActiveTimersWithIssues(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "ATWI")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "")
+	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", ""); err != nil {
+		t.Fatalf("StartTimer: %v", err)
+	}
 
 	timers, err := st.GetActiveTimersWithIssues(ctx, u.ID)
 	if err != nil {

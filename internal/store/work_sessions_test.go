@@ -157,8 +157,13 @@ func TestGetSessionUtilization(t *testing.T) {
 	p, u := testutil.SeedProject(t, st, "UTIL")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
 
-	ws, _ := st.CreateWorkSession(ctx, u.ID, "utilization test")
-	_, _ = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "")
+	ws, err := st.CreateWorkSession(ctx, u.ID, "utilization test")
+	if err != nil {
+		t.Fatalf("CreateWorkSession: %v", err)
+	}
+	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "", ""); err != nil {
+		t.Fatalf("StartTimer: %v", err)
+	}
 	st.StopTimer(ctx, u.ID)
 	st.EndWorkSession(ctx, u.ID)
 
@@ -184,7 +189,7 @@ func TestEndWorkSession_stopsHumanTimer(t *testing.T) {
 		t.Fatalf("CreateWorkSession() error = %v", err)
 	}
 
-	_, err = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "")
+	_, err = st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "", "")
 	if err != nil {
 		t.Fatalf("StartTimer() error = %v", err)
 	}
