@@ -5,7 +5,7 @@ alwaysApply: true
 
 # SEMVER + Changelog
 
-## Semantic Versioning 2.0.0
+## Semantic versioning 2.0.0
 
 - MAJOR: breaking API/behavior changes
 - MINOR: new features (backward-compatible) -- triggered by `feat` commits
@@ -13,28 +13,34 @@ alwaysApply: true
 
 Current version: determined by latest git tag (`git describe --tags`).
 
-## Version Bumping
+## Version bumping (commit → next tag)
 
 - `feat` commit -> MINOR bump
 - `fix` commit -> PATCH bump
 - `BREAKING CHANGE:` footer -> MAJOR bump
 - `chore`, `refactor`, `test`, `docs` -> no version bump (included in next release)
 
-## Release Process
+## Release process (canonical; aligns with `git-workflow.mdc`)
 
-1. Merge `develop` into `release/vX.Y.Z` branch
-2. Run `make changelog` to regenerate CHANGELOG.md via git-cliff
-3. Commit changelog: `chore(release): prepare vX.Y.Z`
-4. Merge release branch into `master`
-5. Tag: `git tag -a vX.Y.Z -m "release: vX.Y.Z"`
-6. Push tag -- CI runs GoReleaser
+Releases touch **`master`** only by merging a **`release/vX.Y.Z`** branch—never by editing files directly on `master`.
 
-## Changelog
+1. `git fetch origin && git checkout develop && git pull origin develop`
+2. `git checkout -b release/vX.Y.Z` (from current `develop`)
+3. Run **`make changelog`** (uses `git-cliff` and `cliff.toml`). **Requirement:** committed `CHANGELOG.md` must be produced by this target only.
+4. If `make changelog` is broken (duplicate sections, wrong range, parse warnings): **fix `cliff.toml` or upgrade/document `git-cliff`**, or open a **task issue** and stop the release until fixed. **Do not** paste sections into `CHANGELOG.md` by hand or with ad-hoc scripts as a substitute for fixing the generator.
+5. Commit on the release branch: `chore(release): prepare vX.Y.Z` with `Refs: none` unless you use a dedicated release issue.
+6. Push `release/vX.Y.Z`; merge into **`master`** via **GitHub PR** (preferred) or a single explicit merge as the release operator.
+7. Tag on the merged `master` tip: `git tag -a vX.Y.Z -m "release: vX.Y.Z"`; push the tag (CI / GoReleaser as configured).
+8. Merge **`master` back into `develop`** so changelog and version alignment flow both ways.
 
-- Auto-generated from conventional commits via `git-cliff` (`cliff.toml`)
-- Never manually edit `CHANGELOG.md`
-- Groups: Features, Bug Fixes, Refactoring, Performance, Testing, Documentation, Miscellaneous
+Deploy production only per **`deploy.mdc`**: `make deploy VERSION=vX.Y.Z` after the tag exists and matches policy there.
 
-## Binary Version
+## Changelog file
+
+- **Source of truth:** output of `make changelog` / `git-cliff` with repo `cliff.toml`
+- **Forbidden:** manual edits to `CHANGELOG.md` to “patch up” a release; repair tooling instead
+- Groups in output: Features, Bug Fixes, Refactoring, Performance, Testing, Documentation, Miscellaneous (as configured in `cliff.toml`)
+
+## Binary version
 
 Injected via ldflags at build time: `-X main.version`, `-X main.commit`, `-X main.date`
