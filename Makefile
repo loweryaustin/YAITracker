@@ -15,6 +15,18 @@ COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
+# IDE/agent tasks often inherit a minimal PATH. If `go` is not already visible,
+# prepend the directory of a Go binary from a standard install location, or /usr/bin:/bin.
+ifeq ($(shell command -v go >/dev/null 2>&1 && echo ok),ok)
+else
+  _GO_BIN := $(firstword $(wildcard $(HOME)/go/bin/go /usr/local/go/bin/go /usr/lib/go/bin/go /usr/bin/go))
+  ifneq ($(_GO_BIN),)
+    export PATH := $(dir $(_GO_BIN)):$(PATH)
+  else
+    export PATH := /usr/bin:/bin:$(PATH)
+  endif
+endif
+
 # ──────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────

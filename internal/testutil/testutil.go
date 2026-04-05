@@ -3,6 +3,7 @@ package testutil
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -35,6 +36,35 @@ func NewTestStore(t *testing.T) *store.Store {
 	}
 
 	t.Cleanup(func() { st.Close() })
+	return st
+}
+
+// NewTestStoreFile creates a file-backed SQLite store in t.TempDir() with migrations
+// applied. Use instead of NewTestStore when a test needs concurrent connections to
+// the same DB (:memory: uses a separate empty DB per connection with the default pool).
+func NewTestStoreFile(t *testing.T) *store.Store {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "yaitracker-test.db")
+	st, err := store.New(path)
+	if err != nil {
+		t.Fatalf("testutil.NewTestStoreFile: open: %v", err)
+	}
+
+	migrateMu.Lock()
+	err = store.Migrate(st.DB(), yaitracker.MigrationsFS, "migrations")
+	migrateMu.Unlock()
+
+	if err != nil {
+		//nolint:errcheck // best-effort close after failed migrate
+		st.Close()
+		t.Fatalf("testutil.NewTestStoreFile: migrate: %v", err)
+	}
+
+	t.Cleanup(func() {
+		//nolint:errcheck // test teardown
+		st.Close()
+	})
 	return st
 }
 
