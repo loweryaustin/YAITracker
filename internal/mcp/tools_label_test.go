@@ -12,7 +12,7 @@ import (
 func TestResolveOrCreateLabelConcurrent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	st := testutil.NewTestStore(t)
+	st := testutil.NewTestStoreFile(t)
 	p, _ := testutil.SeedProject(t, st, "LCC")
 
 	const n = 12
