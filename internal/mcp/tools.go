@@ -634,6 +634,30 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 	}
 }
 
+// resolveOrCreateLabel returns an existing project label by name or creates it.
+// If two callers create the same name concurrently, CreateLabel may fail on the
+// unique (project_id, name) constraint; we then load the row another writer inserted.
+func resolveOrCreateLabel(ctx context.Context, st *store.Store, projectID, labelName, color string) (*model.Label, error) {
+	lbl, err := st.GetLabelByName(ctx, projectID, labelName)
+	if err != nil {
+		return nil, fmt.Errorf("lookup label: %w", err)
+	}
+	if lbl != nil {
+		return lbl, nil
+	}
+	lbl = &model.Label{ProjectID: projectID, Name: labelName, Color: color}
+	if err := st.CreateLabel(ctx, lbl); err != nil {
+		lbl, lookupErr := st.GetLabelByName(ctx, projectID, labelName)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("create label: %w", err)
+		}
+		if lbl == nil {
+			return nil, fmt.Errorf("create label: %w", err)
+		}
+	}
+	return lbl, nil
+}
+
 func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		key := mcp.ParseString(req, "project_key", "")
@@ -657,15 +681,9 @@ func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 			color = "#64748b"
 		}
 
-		lbl, err := st.GetLabelByName(ctx, p.ID, labelName)
+		lbl, err := resolveOrCreateLabel(ctx, st, p.ID, labelName, color)
 		if err != nil {
-			return errResult(fmt.Errorf("lookup label: %w", err)), nil
-		}
-		if lbl == nil {
-			lbl = &model.Label{ProjectID: p.ID, Name: labelName, Color: color}
-			if err := st.CreateLabel(ctx, lbl); err != nil {
-				return errResult(fmt.Errorf("create label: %w", err)), nil
-			}
+			return errResult(err), nil
 		}
 
 		if err := st.AddIssueLabel(ctx, issue.ID, lbl.ID); err != nil {
