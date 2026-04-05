@@ -14,6 +14,8 @@ deploy/.env
 # IDE (copy from .cursor/mcp.json.example; never commit secrets)
 .cursor/mcp.json
 .cursor/yait-workflow-state.json
+.cursor/yait-work-lock
+.cursor/yait-hook-disable
 .vscode/
 .idea/
 
