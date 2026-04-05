@@ -1,16 +1,34 @@
 #!/usr/bin/env python3
-"""Cursor beforeMCPExecution: record active YAIT issue for shell gate; always allow MCP."""
+"""Cursor beforeMCPExecution: relay conversation_id to Sidecar and manage work lock."""
 from __future__ import annotations
 
 import json
 import os
 import sys
+import tempfile
 
 
 def repo_root() -> str:
     return os.environ.get("YAITRACKER_REPO_ROOT") or os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
+
+
+def relay_conversation_id(data: dict) -> None:
+    """Write conversation_id to a file the Sidecar reads before each tool call."""
+    conv_id = data.get("conversation_id", "")
+    if not conv_id:
+        return
+    target = os.path.join(repo_root(), ".cursor", "yait-conversation-id")
+    try:
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target))
+        try:
+            os.write(fd, conv_id.encode("utf-8"))
+        finally:
+            os.close(fd)
+        os.replace(tmp, target)
+    except OSError:
+        pass
 
 
 def lock_path() -> str:
@@ -36,10 +54,17 @@ def extract_tool(data: dict) -> str:
 def extract_args(data: dict) -> dict:
     if not isinstance(data, dict):
         return {}
-    for key in ("arguments", "toolArguments", "toolInput", "params", "input"):
+    for key in ("arguments", "toolArguments", "tool_input", "toolInput", "params", "input"):
         v = data.get(key)
         if isinstance(v, dict):
             return v
+        if isinstance(v, str) and v.strip().startswith("{"):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
     req = data.get("request")
     if isinstance(req, dict):
         return extract_args(req)
@@ -57,6 +82,8 @@ def main() -> None:
     except json.JSONDecodeError:
         allow()
         return
+
+    relay_conversation_id(data)
 
     tool = extract_tool(data)
     args = extract_args(data)

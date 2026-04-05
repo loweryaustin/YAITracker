@@ -82,7 +82,6 @@ var issueListTpl = template.Must(template.New("issue-list").Funcs(funcMap).Parse
 </div>
 {{end}}`))
 
-
 func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)
@@ -226,6 +225,7 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
                 <div class="flex items-center gap-2">
                     {{if eq .ActorType "agent"}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
+                    {{if .McpActorID}}<span class="font-mono text-[10px] text-slate-400 max-w-[8rem] truncate" title="{{.McpActorID}}">{{.McpActorID}}</span>{{end}}
                     {{else}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
                     {{end}}
@@ -368,7 +368,6 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
     </div>
 </div>
 {{end}}`))
-
 
 func (h *Handler) GetIssueDetail(w http.ResponseWriter, r *http.Request) {
 	key := h.urlParam(r, "key")
@@ -538,6 +537,7 @@ func (h *Handler) PostIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form", http.StatusBadRequest)
 		return
@@ -545,13 +545,13 @@ func (h *Handler) PostIssue(w http.ResponseWriter, r *http.Request) {
 
 	user := h.currentUser(r)
 	issue := &model.Issue{
-		ProjectID:  project.ID,
-		Title:      r.FormValue("title"),
+		ProjectID:   project.ID,
+		Title:       r.FormValue("title"),
 		Description: r.FormValue("description"),
-		Type:       r.FormValue("type"),
-		Status:     r.FormValue("status"),
-		Priority:   r.FormValue("priority"),
-		ReporterID: user.ID,
+		Type:        r.FormValue("type"),
+		Status:      r.FormValue("status"),
+		Priority:    r.FormValue("priority"),
+		ReporterID:  user.ID,
 	}
 
 	if aid := r.FormValue("assignee_id"); aid != "" {

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+	"fmt"
 	"html/template"
 	"net/http"
 	"time"
@@ -173,6 +175,7 @@ type timesheetEntry struct {
 	Number     int
 	Title      string
 	ActorType  string
+	McpActorID string
 	Days       [7]int64
 	Total      int64
 }
@@ -208,13 +211,13 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 	weekEnd := weekStart.AddDate(0, 0, 7)
 
 	rows, err := h.Store.DB().QueryContext(ctx,
-		`SELECT te.issue_id, te.started_at, te.duration, te.actor_type,
+		`SELECT te.issue_id, te.started_at, te.duration, te.actor_type, te.mcp_actor_id,
 		        i.number, i.title, i.project_id, p.key
 		 FROM time_entries te
 		 JOIN issues i ON te.issue_id = i.id
 		 JOIN projects p ON i.project_id = p.id
 		 WHERE te.user_id = ? AND te.started_at >= ? AND te.started_at < ? AND te.duration IS NOT NULL
-		 ORDER BY i.project_id, i.number, te.actor_type`,
+		 ORDER BY i.project_id, i.number, te.actor_type, te.mcp_actor_id`,
 		user.ID, weekStart, weekEnd)
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -228,11 +231,12 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var issueID, pKey, actorType string
+		var mcp sql.NullString
 		var startedAt time.Time
 		var duration int64
 		var num int
 		var title, projectID string
-		if err := rows.Scan(&issueID, &startedAt, &duration, &actorType,
+		if err := rows.Scan(&issueID, &startedAt, &duration, &actorType, &mcp,
 			&num, &title, &projectID, &pKey); err != nil {
 			continue
 		}
@@ -241,10 +245,17 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 			dayIdx = 6
 		}
 
-		key := issueID + "/" + actorType
+		actorSlot := ""
+		if mcp.Valid {
+			actorSlot = mcp.String
+		}
+		key := fmt.Sprintf("%s/%s/%s", issueID, actorType, actorSlot)
 		e, ok := tsMap[key]
 		if !ok {
-			e = &timesheetEntry{IssueID: issueID, ProjectKey: pKey, Number: num, Title: title, ActorType: actorType}
+			e = &timesheetEntry{
+				IssueID: issueID, ProjectKey: pKey, Number: num, Title: title,
+				ActorType: actorType, McpActorID: actorSlot,
+			}
 			tsMap[key] = e
 		}
 		e.Days[dayIdx] += duration
@@ -282,6 +293,7 @@ type agentTimerInfo struct {
 	Number     int
 	Title      string
 	Secs       int64
+	McpActorID string
 }
 
 type sessionBannerData struct {
@@ -325,6 +337,7 @@ var sessionBannerTpl = template.Must(template.New("session-banner").Funcs(funcMa
             <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             {{range .AgentTimers}}
             <a href="/projects/{{.ProjectKey}}/issues/{{.Number}}" class="text-purple-700 text-xs font-medium hover:underline">{{.ProjectKey}}-{{.Number}}</a>
+            {{if .McpActorID}}<span class="text-slate-400 font-mono text-[10px]">{{.McpActorID}}</span>{{end}}
             {{end}}
             <span class="font-mono text-purple-600 text-xs" x-text="Math.floor(agentSecs/3600) + 'h ' + Math.floor((agentSecs%3600)/60) + 'm'"></span>
         </div>
@@ -378,7 +391,7 @@ func (h *Handler) renderSessionBanner(w http.ResponseWriter, r *http.Request) {
 	for _, t := range allTimers {
 		if t.ActorType == "agent" {
 			secs := int64(time.Since(t.StartedAt).Seconds())
-			info := agentTimerInfo{Secs: secs}
+			info := agentTimerInfo{Secs: secs, McpActorID: t.McpActorID}
 			if t.Issue != nil {
 				info.ProjectKey = t.Issue.ProjectKey
 				info.Number = t.Issue.Number
@@ -398,11 +411,17 @@ func (h *Handler) renderSessionBanner(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) renderTimeEntries(w http.ResponseWriter, entries []model.TimeEntry) {
 	tpl := template.Must(template.New("time-entries").Funcs(template.FuncMap{
 		"formatDuration": FormatDuration,
-		"derefInt64":     func(i *int64) int64 { if i != nil { return *i }; return 0 },
+		"derefInt64": func(i *int64) int64 {
+			if i != nil {
+				return *i
+			}
+			return 0
+		},
 	}).Parse(`
 	{{range .}}
 	<div class="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
 		<div class="flex items-center gap-3">
+			{{if eq .ActorType "agent"}}<span class="text-[10px] font-mono text-purple-600">{{if .McpActorID}}{{.McpActorID}}{{else}}agent{{end}}</span>{{end}}
 			<span>{{if .User}}{{.User.Name}}{{end}}</span>
 			<span class="text-slate-400">{{.StartedAt.Format "Jan 2"}}</span>
 		</div>
@@ -434,6 +453,7 @@ var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(app
                 <div class="flex items-center gap-2">
                     {{if eq .ActorType "agent"}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
+                    {{if .McpActorID}}<span class="font-mono text-[10px] text-slate-400 truncate max-w-[5rem]" title="{{.McpActorID}}">{{.McpActorID}}</span>{{end}}
                     {{else}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
                     {{end}}
@@ -561,6 +581,7 @@ var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(app
                 <td class="px-2 py-2">
                     {{if eq .ActorType "agent"}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">AI</span>
+                    {{if .McpActorID}}<div class="font-mono text-[10px] text-slate-400 truncate max-w-[4rem]" title="{{.McpActorID}}">{{.McpActorID}}</div>{{end}}
                     {{else}}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">You</span>
                     {{end}}

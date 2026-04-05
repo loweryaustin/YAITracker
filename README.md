@@ -94,8 +94,6 @@ volumes:
 
 ```bash
 yaitracker serve --addr :8080 --db yaitracker.db
-
-yaitracker mcp --db yaitracker.db
 ```
 
 | Flag | Env Var | Default | Description |
@@ -113,22 +111,26 @@ YAITracker includes a first-class MCP server so your AI assistant can manage iss
 
 ### Setup in Cursor
 
-Copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) (stdio) or [`.cursor/mcp-remote.json.example`](.cursor/mcp-remote.json.example) (HTTP + bearer token) to **`.cursor/mcp.json`** and adjust paths and URLs. That file is **gitignored** so tokens are not committed.
+Copy [`.cursor/mcp.json.example`](.cursor/mcp.json.example) (Sidecar) or [`.cursor/mcp-remote.json.example`](.cursor/mcp-remote.json.example) (HTTP) to **`.cursor/mcp.json`** and adjust values. That file is **gitignored** so tokens are not committed.
 
-Stdio (local binary):
+**Sidecar proxy (recommended)** — automatic actor management and per-conversation isolation:
 
 ```json
 {
   "mcpServers": {
     "yaitracker": {
       "command": "/path/to/yaitracker",
-      "args": ["mcp", "--db", "/path/to/yaitracker.db"]
+      "args": ["sidecar"],
+      "env": {
+        "YAITRACKER_URL": "http://localhost:8080",
+        "YAITRACKER_OAUTH_ACCESS_TOKEN": "<from POST /api/v1/auth/token>"
+      }
     }
   }
 }
 ```
 
-Or connect to a running instance over HTTP (set the bearer token from your YAITracker MCP auth):
+**HTTP (degraded)** — static actor, all chats share one identity:
 
 ```json
 {
@@ -136,12 +138,15 @@ Or connect to a running instance over HTTP (set the bearer token from your YAITr
     "yaitracker": {
       "url": "http://localhost:8080/mcp",
       "headers": {
-        "Authorization": "Bearer <token>"
+        "Authorization": "Bearer <token>",
+        "X-Yaitracker-Mcp-Actor-Id": "<id from POST /api/v1/mcp/actors>"
       }
     }
   }
 }
 ```
+
+See [`docs/mcp-agent-workflow.md`](docs/mcp-agent-workflow.md) for actor lifecycle, heartbeat TTL, and per-conversation isolation details.
 
 ### Tools
 
@@ -242,7 +247,7 @@ yaitracker serve    → chi Router → HTML handlers (htmx/Alpine.js UI)
                                  → JSON API (/api/v1, OAuth2)
                                  → Static assets (embedded)
 
-yaitracker mcp      → MCP Server (stdio or HTTP) → tools + resources
+yaitracker sidecar  → MCP Proxy (stdio→HTTP)     → tools + resources
 ```
 
 Both commands share the same SQLite database. The entire application compiles to a single binary with all assets embedded.

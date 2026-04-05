@@ -11,8 +11,8 @@ import (
 	"yaitracker.com/loweryaustin/internal/store"
 )
 
-// MCPActorIDHeader is the HTTP header clients send to identify concurrent MCP agents
-// (same user, same issue, distinct timers). Optional; empty/absent uses legacy single-slot behavior.
+// MCPActorIDHeader is the HTTP header clients send with a server-registered MCP actor id
+// (from POST /api/v1/mcp/actors). The Sidecar proxy sets this automatically.
 const MCPActorIDHeader = "X-Yaitracker-Mcp-Actor-Id"
 
 type Server struct {
@@ -53,10 +53,14 @@ func (s *Server) mcpContextFunc() func(ctx context.Context, r *http.Request) con
 			return ctx
 		}
 		ctx = auth.ContextWithUser(ctx, user)
-		actor := r.Header.Get(MCPActorIDHeader)
-		if actor != "" {
-			ctx = auth.ContextWithMCPActorID(ctx, actor)
+		actor := auth.NormalizeMCPActorID(r.Header.Get(MCPActorIDHeader))
+		if actor == "" {
+			return ctx
 		}
-		return ctx
+		_, err = s.store.GetMCPActorForUser(ctx, user.ID, actor)
+		if err != nil {
+			return auth.ContextWithMCPActorInvalidHeader(ctx)
+		}
+		return auth.ContextWithMCPActorID(ctx, actor)
 	}
 }

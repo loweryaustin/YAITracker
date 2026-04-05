@@ -152,6 +152,7 @@ func TestDeleteProject_cascadesChildData(t *testing.T) {
 
 	p, u := testutil.SeedProject(t, st, "CASC")
 	issue := testutil.SeedIssue(t, st, p.ID, u.ID)
+	actor := testutil.SeedMCPActor(t, st, u.ID, "casc")
 
 	if err := st.CreateComment(ctx, &model.Comment{
 		IssueID: issue.ID, AuthorID: u.ID, Body: "test comment",
@@ -159,7 +160,7 @@ func TestDeleteProject_cascadesChildData(t *testing.T) {
 		t.Fatalf("CreateComment: %v", err)
 	}
 
-	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", "")
+	te, err := st.StartTimer(ctx, issue.ID, u.ID, "agent", "", "", actor.ID)
 	if err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}

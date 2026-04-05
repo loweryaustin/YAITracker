@@ -105,7 +105,6 @@ document.querySelectorAll('[id^="column-"]').forEach(function(col) {
 </script>
 {{end}}`))
 
-
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)

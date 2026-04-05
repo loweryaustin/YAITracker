@@ -23,26 +23,22 @@ func StrictAgentWorkflow() bool {
 }
 
 // activeAgentTimerOnIssue reports whether the user has an active agent timer on the given issue
-// for the MCP actor in ctx (from X-Yaitracker-Mcp-Actor-Id). Empty actor matches only legacy timers
-// with no mcp_actor_id; non-empty matches that id only.
+// for the MCP actor in ctx (from X-Yaitracker-Mcp-Actor-Id after server validation).
 func activeAgentTimerOnIssue(ctx context.Context, st *store.Store, userID, issueID string) (bool, error) {
 	timers, err := st.GetActiveTimers(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("get active timers: %w", err)
 	}
 	actorCtx := auth.MCPActorIDFromContext(ctx)
+	if actorCtx == "" {
+		return false, nil
+	}
 	for i := range timers {
 		t := &timers[i]
 		if t.IssueID != issueID || t.ActorType != "agent" {
 			continue
 		}
-		if actorCtx != "" {
-			if auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
-				return true, nil
-			}
-			continue
-		}
-		if auth.NormalizeMCPActorID(t.McpActorID) == "" {
+		if auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
 			return true, nil
 		}
 	}
@@ -53,6 +49,10 @@ func activeAgentTimerOnIssue(ctx context.Context, st *store.Store, userID, issue
 // Used by begin_work and start_timer. It does not stop agent timers on other issues so one user can run
 // parallel agent timers on distinct issues.
 func beginAgentWork(ctx context.Context, st *store.Store, userID, key string, number int, timerDesc string) (*model.Issue, *model.TimeEntry, string, error) {
+	if err := auth.AgentMCPAuthError(ctx); err != nil {
+		return nil, nil, "", err
+	}
+
 	p, err := st.GetProjectByKey(ctx, key)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("project %s not found", key)
@@ -91,6 +91,16 @@ func beginAgentWork(ctx context.Context, st *store.Store, userID, key string, nu
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("start timer: %w", err)
 	}
+
+	//nolint:errcheck // audit log is best-effort after timer start
+	st.LogActivity(ctx, &model.ActivityLog{
+		EntityType: "issue",
+		EntityID:   issue.ID,
+		UserID:     userID,
+		Action:     "mcp_begin_work",
+		Field:      "mcp_actor_id",
+		NewValue:   auth.MCPActorIDFromContext(ctx),
+	})
 
 	return issue, entry, ws.ID, nil
 }

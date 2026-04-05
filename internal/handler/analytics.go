@@ -142,7 +142,6 @@ var projectAnalyticsTpl = template.Must(template.New("project-analytics").Funcs(
 </div>
 {{end}}`))
 
-
 func (h *Handler) GetProjectAnalytics(w http.ResponseWriter, r *http.Request) {
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)
