@@ -50,7 +50,7 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 
 	// Issue tools
 	s.AddTool(mcp.NewTool("list_issues",
-		mcp.WithDescription("List issues for a project. Returns concise one-line-per-issue format by default; set format=json for full detail."),
+		mcp.WithDescription("List issues for a project. Returns concise one-line-per-issue format by default; set format=json for full detail (adds parent_number and child_numbers for hierarchy)."),
 		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
 		mcp.WithString("status", mcp.Description("Filter by status (comma-separated)")),
 		mcp.WithString("type", mcp.Description("Filter by type")),
@@ -75,6 +75,7 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("status", mcp.Description("Status: backlog, todo, in_progress, in_review, done")),
 		mcp.WithNumber("story_points", mcp.Description("Story point estimate")),
 		mcp.WithNumber("estimated_hours", mcp.Description("Hours estimate")),
+		mcp.WithNumber("parent_number", mcp.Description("Optional parent issue number in the same project")),
 	), toolCreateIssue(st))
 
 	s.AddTool(mcp.NewTool("update_issue",
@@ -87,6 +88,8 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("priority", mcp.Description("New priority")),
 		mcp.WithNumber("story_points", mcp.Description("Story points")),
 		mcp.WithNumber("estimated_hours", mcp.Description("Estimated hours")),
+		mcp.WithBoolean("clear_parent", mcp.Description("When true, remove the parent link (ignores parent_number)")),
+		mcp.WithNumber("parent_number", mcp.Description("When > 0, set parent to this issue number in the same project")),
 	), toolUpdateIssue(st))
 
 	s.AddTool(mcp.NewTool("move_issue",
@@ -189,6 +192,44 @@ func toJSON(v interface{}) string {
 	return string(b)
 }
 
+// issueDetailResponse is the issue payload for get_issue with a stable parent_number for agents.
+type issueDetailResponse struct {
+	model.Issue
+	ParentNumber *int `json:"parent_number,omitempty"`
+}
+
+func issuesToMCPJSON(ctx context.Context, st *store.Store, projectID string, issues []model.Issue) ([]map[string]interface{}, error) {
+	idToNum, err := st.MapIssueIDToNumber(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	parentToKids, err := st.MapParentIDToChildNumbers(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]interface{}, 0, len(issues))
+	for _, iss := range issues {
+		raw, err := json.Marshal(iss)
+		if err != nil {
+			return nil, err
+		}
+		var m map[string]interface{}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, err
+		}
+		if iss.ParentID != nil {
+			if n, ok := idToNum[*iss.ParentID]; ok {
+				m["parent_number"] = n
+			}
+		}
+		if kids := parentToKids[iss.ID]; len(kids) > 0 {
+			m["child_numbers"] = kids
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
 func textResult(text string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.TextContent{Type: "text", Text: text}},
@@ -225,11 +266,11 @@ func toolCreateProject(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		p := &model.Project{
-			Key:       key,
-			Name:      name,
+			Key:         key,
+			Name:        name,
 			Description: mcp.ParseString(req, "description", ""),
-			Status:    "active",
-			CreatedBy: creatorID,
+			Status:      "active",
+			CreatedBy:   creatorID,
 		}
 
 		if err := st.CreateProject(ctx, p); err != nil {
@@ -350,7 +391,11 @@ func toolListIssues(st *store.Store) server.ToolHandlerFunc {
 		issues, total, _ := st.ListIssues(ctx, filter)
 
 		if mcp.ParseString(req, "format", "") == "json" {
-			return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(issues), toJSON(issues))), nil
+			enriched, err := issuesToMCPJSON(ctx, st, p.ID, issues)
+			if err != nil {
+				return errResult(fmt.Errorf("list issues: %w", err)), nil
+			}
+			return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(enriched), toJSON(enriched))), nil
 		}
 
 		var lines []string
@@ -386,12 +431,29 @@ func toolGetIssue(st *store.Store) server.ToolHandlerFunc {
 		totalTime, _ := st.GetIssueTotalTime(ctx, issue.ID)
 		children, _ := st.GetChildIssues(ctx, issue.ID)
 
+		childNums := make([]int, len(children))
+		for i := range children {
+			childNums[i] = children[i].Number
+		}
+
+		var parentNum *int
+		if issue.ParentID != nil {
+			parent, err := st.GetIssue(ctx, *issue.ParentID)
+			if err == nil && parent.ProjectID == issue.ProjectID {
+				n := parent.Number
+				parentNum = &n
+			}
+		}
+
+		detail := issueDetailResponse{Issue: *issue, ParentNumber: parentNum}
+
 		result := map[string]interface{}{
-			"issue":        issue,
-			"comments":     comments,
-			"time_entries":  timeEntries,
+			"issue":              detail,
+			"comments":           comments,
+			"time_entries":       timeEntries,
 			"total_time_seconds": totalTime,
-			"children":     children,
+			"children":           children,
+			"child_numbers":      childNums,
 		}
 		return textResult(toJSON(result)), nil
 	}
@@ -415,13 +477,13 @@ func toolCreateIssue(st *store.Store) server.ToolHandlerFunc {
 		priority := mcp.ParseString(req, "priority", "none")
 
 		issue := &model.Issue{
-			ProjectID:  p.ID,
-			Title:      mcp.ParseString(req, "title", ""),
+			ProjectID:   p.ID,
+			Title:       mcp.ParseString(req, "title", ""),
 			Description: mcp.ParseString(req, "description", ""),
-			Type:       issueType,
-			Status:     status,
-			Priority:   priority,
-			ReporterID: reporterID,
+			Type:        issueType,
+			Status:      status,
+			Priority:    priority,
+			ReporterID:  reporterID,
 		}
 
 		sp := mcp.ParseInt(req, "story_points", 0)
@@ -432,6 +494,13 @@ func toolCreateIssue(st *store.Store) server.ToolHandlerFunc {
 		if eh > 0 {
 			issue.EstimatedHours = &eh
 		}
+
+		parentNumber := mcp.ParseInt(req, "parent_number", 0)
+		pid, err := parentIDFromOptionalNumber(ctx, st, p.ID, parentNumber)
+		if err != nil {
+			return errResult(err), nil
+		}
+		issue.ParentID = pid
 
 		if err := st.CreateIssue(ctx, issue); err != nil {
 			return errResult(err), nil
@@ -476,7 +545,32 @@ func toolUpdateIssue(st *store.Store) server.ToolHandlerFunc {
 			issue.EstimatedHours = &eh
 		}
 
-		st.UpdateIssue(ctx, issue)
+		clearParent := mcp.ParseBoolean(req, "clear_parent", false)
+		parentNumber := mcp.ParseInt(req, "parent_number", 0)
+		if clearParent {
+			issue.ParentID = nil
+		} else if parentNumber > 0 {
+			parent, err := st.GetIssueByNumber(ctx, p.ID, parentNumber)
+			if err != nil {
+				return errResult(fmt.Errorf("parent issue #%d not found in project", parentNumber)), nil
+			}
+			if parent.ID == issue.ID {
+				return errResult(fmt.Errorf("issue cannot be its own parent")), nil
+			}
+			cycle, err := parentAssignCreatesCycle(ctx, st, issue.ID, parent.ID)
+			if err != nil {
+				return errResult(fmt.Errorf("validate parent: %w", err)), nil
+			}
+			if cycle {
+				return errResult(fmt.Errorf("setting this parent would create a cycle")), nil
+			}
+			pid := parent.ID
+			issue.ParentID = &pid
+		}
+
+		if err := st.UpdateIssue(ctx, issue); err != nil {
+			return errResult(fmt.Errorf("update issue: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Updated %s-%d", key, number)), nil
 	}
 }
