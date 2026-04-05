@@ -5,17 +5,51 @@ alwaysApply: true
 
 # Git Workflow
 
-## Gitflow Branches
+## Protected branches
 
-- `master` -- production releases, tagged with semver
-- `develop` -- integration branch, PRs merge here
-- `feature/YAIT-N-description` -- new features
-- `hotfix/YAIT-N-description` -- urgent production fixes
-- `release/vX.Y.Z` -- release preparation
+`master` and `develop` must not receive **direct feature work** (no committing fixes/features on the branch tip and pushing). Changes land only through the flows below.
 
-Never commit directly to `master` or `develop`.
+## Branch naming
 
-## Conventional Commits
+| Purpose | Pattern | Merges into |
+|--------|---------|-------------|
+| Feature | `feature/YAIT-N-short-description` | `develop` (PR) |
+| Bugfix / chore tied to an issue | `fix/YAIT-N-short-description` | `develop` (PR) |
+| Release prep | `release/vX.Y.Z` | `master` (PR or reviewed merge; see below) |
+| Production emergency | `hotfix/YAIT-N-short-description` | `master` then backport to `develop` (PRs) |
+
+If there is **no** tracker issue (rare), use `chore/no-issue-<slug>` and put `Refs: none` in the commit body (hook allows it).
+
+## Canonical path: day-to-day code
+
+1. Branch from up-to-date `develop`: `git fetch origin && git checkout develop && git pull && git checkout -b fix/YAIT-N-slug` (or `feature/…`).
+2. Implement; **`make audit` must pass** before push.
+3. Push branch; open **PR → `develop`**; merge via GitHub (merge or squash per policy below).
+4. Delete the remote branch after merge.
+
+**Rebase** the topic branch on `origin/develop` before merge if it has drifted.
+
+## Canonical path: release (version tag + changelog)
+
+This is the **only** allowed way to move release artifacts onto `master`. It resolves the apparent conflict between “do not commit on `master`” and “releases live on `master`”: you never author commits **on** `master`; you merge a **release branch** that already contains the changelog commit.
+
+1. `git fetch origin && git checkout develop && git pull origin develop`
+2. `git checkout -b release/vX.Y.Z` (new branch from `develop`), or reset an existing local `release/vX.Y.Z` to `develop` if redoing.
+3. Run **`make changelog`** on this branch. If output is wrong, **fix `cliff.toml` or tooling**—do not hand-edit `CHANGELOG.md` (see `.cursor/rules/semver-changelog.mdc`).
+4. Commit on the release branch only: `chore(release): prepare vX.Y.Z` with body `Refs: none` (or the release-tracking issue if you use one).
+5. Push `release/vX.Y.Z` and merge into **`master`** via **GitHub PR** (preferred) or an explicit local `git merge --no-ff` + push **only as the release merge**, not as everyday workflow.
+6. On the resulting `master` tip: `git tag -a vX.Y.Z -m "release: vX.Y.Z"` and push the tag (triggers release CI when configured).
+7. Merge **`master` back into `develop`** (PR or merge commit) so both lines stay aligned.
+
+Deploy: **`make deploy VERSION=vX.Y.Z`** only after the tag exists on `master` per `deploy.mdc`.
+
+## Canonical path: hotfix
+
+1. Branch from **`master`**: `hotfix/YAIT-N-…`.
+2. Fix; PR → **`master`**; tag new PATCH version; deploy if needed.
+3. Backport: PR the same fix (or merge `master` into `develop`) so `develop` is not missing the fix.
+
+## Conventional commits
 
 Format: `<type>(<scope>): <description>`
 
@@ -29,13 +63,12 @@ Format: `<type>(<scope>): <description>`
 - `test(store): add table-driven tests for project CRUD`
 - `chore(deps): bump modernc.org/sqlite to v1.49`
 
-**Body:** reference issue with `Refs: YAIT-N`
+**Body:** `Refs: YAIT-N` or `Refs: none` (required by `.githooks/commit-msg` except merge/revert lines).
 
 **Breaking changes:** add `BREAKING CHANGE:` footer
 
-## Rules
+## Other rules
 
 - One logical change per commit (atomic commits)
-- Rebase feature branches on `develop` before merge
-- Squash-merge only if the feature branch has noisy WIP commits
-- Delete feature branches after merge
+- Squash-merge only if the topic branch has noisy WIP commits
+- Delete remote topic branches after merge

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Code Review Checklist
 
-Run `make audit` before every commit. It must pass.
+Run **`make audit`** before every commit. It must pass. If `go` is missing from PATH in an agent shell, fix the environment or Makefile discovery (see `git-workflow` / Makefile)—do not treat “audit skipped” as shippable.
 
 ## Code Quality
 
@@ -27,11 +27,13 @@ Run `make audit` before every commit. It must pass.
 
 ## YAITracker
 
-- [ ] `begin_work` called at start, `complete_work` called at end
+- [ ] **`begin_work`** at start and **`complete_work`** at end for the issue — **blocking** when YAIT MCP is enabled (see `.cursor/rules/yaitracker-workflow.mdc`)
 - [ ] Completion summary describes what changed, files touched, tests added
 
 ## Git
 
 - [ ] Commit follows conventional commits format
-- [ ] Commit body includes `Refs: YAIT-N`
+- [ ] Commit body includes **`Refs: YAIT-N`** or **`Refs: none`** (hook-enforced)
+- [ ] Branch matches **`feature/YAIT-N-…`** or **`fix/YAIT-N-…`** (or release/hotfix per `git-workflow.mdc`)
+- [ ] Landed via **PR** to `develop` (or release/hotfix flow)—not direct push of work commits to `origin/develop` / `origin/master`
 - [ ] One logical change per commit
