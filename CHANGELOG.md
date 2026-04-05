@@ -5,6 +5,43 @@ This file is auto-generated from [conventional commits](https://www.conventional
 
 ## [v0.9.1] - 2026-04-04
 
+## [v0.9.2] - 2026-04-05
+
+### Bug Fixes
+
+- Expose issue parent and child links in MCP tools (0903330)
+
+  Refs: YAIT-26
+
+- Use typed gt helpers on project analytics page (04312c2)
+
+### Features
+
+- Enforce agent timer before complete_work (48cc52a)
+
+- Add shared git hooks and `make hooks` target (37ee3b9)
+
+### Continuous integration
+
+- Add PR title and commit subject checks (a4e8aee)
+
+### Documentation
+
+- Add CONTRIBUTING.md and pull request template (7b183f2)
+
+- Align Gitflow rules with master branch (edabcc0)
+
+### Miscellaneous
+
+- Pin govulncheck version and sync notes with Makefile (7d09997)
+
+- Run lint and vulncheck via pinned go run (82fca89)
+
+### Style
+
+- Gofmt after YAIT-17 merge (e3f079a)
+
+
 ### Bug Fixes
 
 - Unblock CI and release pipeline (3551bdb)
