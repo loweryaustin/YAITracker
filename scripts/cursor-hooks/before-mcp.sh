@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Cursor beforeMCPExecution hook (beta). Reads JSON from stdin; prints allow/deny JSON.
-# YAITracker workflow rules are enforced in the MCP server (internal/mcp); this hook is a
-# pass-through so Cursor can be extended later without duplicating logic.
+# Cursor beforeMCPExecution: record YAIT issue lock on begin_work; clear on complete_work.
 set -euo pipefail
-cat >/dev/null || true
-printf '%s\n' '{"permission":"allow"}'
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export YAITRACKER_REPO_ROOT="$REPO_ROOT"
+exec python3 "$REPO_ROOT/scripts/cursor-hooks/yait_before_mcp.py"

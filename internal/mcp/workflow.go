@@ -36,8 +36,9 @@ func activeAgentTimerOnIssue(ctx context.Context, st *store.Store, userID, issue
 	return false, nil
 }
 
-// beginAgentWork ensures a work session, stops other agent timers, moves the issue to in_progress,
-// and starts an agent timer. Used by begin_work and start_timer.
+// beginAgentWork ensures a work session, moves the issue to in_progress, and starts an agent timer.
+// Used by begin_work and start_timer. It does not stop agent timers on other issues so one user can run
+// parallel agent timers on distinct issues.
 func beginAgentWork(ctx context.Context, st *store.Store, userID, key string, number int, timerDesc string) (*model.Issue, *model.TimeEntry, string, error) {
 	p, err := st.GetProjectByKey(ctx, key)
 	if err != nil {
@@ -63,24 +64,9 @@ func beginAgentWork(ctx context.Context, st *store.Store, userID, key string, nu
 		if err != nil {
 			return nil, nil, "", fmt.Errorf("create session: %w", err)
 		}
-	} else {
-		if err := st.UpdateWorkSessionDescription(ctx, ws.ID, sessionDesc); err != nil {
-			return nil, nil, "", fmt.Errorf("update work session: %w", err)
-		}
 	}
-
-	activeTimers, err := st.GetActiveTimers(ctx, userID)
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("get active timers: %w", err)
-	}
-	for i := range activeTimers {
-		t := &activeTimers[i]
-		if t.ActorType == "agent" {
-			if _, err := st.StopTimerByID(ctx, t.ID); err != nil {
-				return nil, nil, "", fmt.Errorf("stop timer: %w", err)
-			}
-		}
-	}
+	// Work session policy 1a: when a session already exists, do not overwrite its description on
+	// every begin_work — parallel agents would fight over the single work_sessions row.
 
 	if issue.Status != "in_progress" {
 		if err := st.MoveIssue(ctx, issue.ID, "in_progress", 0); err != nil {

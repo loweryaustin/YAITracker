@@ -113,6 +113,14 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 		mcp.WithString("body", mcp.Required(), mcp.Description("Comment body (markdown)")),
 	), toolAddComment(st))
 
+	s.AddTool(mcp.NewTool("add_issue_label",
+		mcp.WithDescription("Attach a label to an issue; creates the label in the project if it does not exist"),
+		mcp.WithString("project_key", mcp.Required(), mcp.Description("Project key")),
+		mcp.WithNumber("number", mcp.Required(), mcp.Description("Issue number")),
+		mcp.WithString("label_name", mcp.Required(), mcp.Description("Label name (case-insensitive match to existing labels)")),
+		mcp.WithString("color", mcp.Description("Hex color when creating a new label (default #64748b)")),
+	), toolAddIssueLabel(st))
+
 	s.AddTool(mcp.NewTool("search_issues",
 		mcp.WithDescription("Search issues across all projects"),
 		mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
@@ -623,6 +631,47 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 		}
 		st.CreateComment(ctx, c)
 		return textResult(fmt.Sprintf("Added comment to %s-%d", key, number)), nil
+	}
+}
+
+func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		key := mcp.ParseString(req, "project_key", "")
+		number := mcp.ParseInt(req, "number", 0)
+		labelName := strings.TrimSpace(mcp.ParseString(req, "label_name", ""))
+		if labelName == "" {
+			return errResult(fmt.Errorf("label_name is required")), nil
+		}
+
+		p, err := st.GetProjectByKey(ctx, key)
+		if err != nil {
+			return errResult(fmt.Errorf("project %s not found", key)), nil
+		}
+		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
+		if err != nil {
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+		}
+
+		color := strings.TrimSpace(mcp.ParseString(req, "color", ""))
+		if color == "" {
+			color = "#64748b"
+		}
+
+		lbl, err := st.GetLabelByName(ctx, p.ID, labelName)
+		if err != nil {
+			return errResult(fmt.Errorf("lookup label: %w", err)), nil
+		}
+		if lbl == nil {
+			lbl = &model.Label{ProjectID: p.ID, Name: labelName, Color: color}
+			if err := st.CreateLabel(ctx, lbl); err != nil {
+				return errResult(fmt.Errorf("create label: %w", err)), nil
+			}
+		}
+
+		if err := st.AddIssueLabel(ctx, issue.ID, lbl.ID); err != nil {
+			return errResult(fmt.Errorf("add issue label: %w", err)), nil
+		}
+		return textResult(fmt.Sprintf("Added label %q to %s-%d", lbl.Name, key, number)), nil
 	}
 }
 

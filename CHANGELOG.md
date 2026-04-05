@@ -3,6 +3,14 @@
 All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
+
+## [v0.10.0] - 2026-04-05
+
+### Features
+
+- Add add_issue_label tool (2f7b22a)
+- Cursor hooks require begin_work; test parallel agent timers (39d3b2c)
+
 ## [v0.9.1] - 2026-04-04
 
 ## [v0.9.2] - 2026-04-05
