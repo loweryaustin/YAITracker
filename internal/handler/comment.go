@@ -62,7 +62,7 @@ func (h *Handler) PostComment(w http.ResponseWriter, r *http.Request) {
 				<span class="font-medium text-sm">{{.Author.Name}}</span>
 				<span class="text-xs text-slate-400">just now</span>
 			</div>
-			<div class="text-sm text-slate-700">{{.Body}}</div>
+			<div class="text-sm text-slate-700 prose prose-sm max-w-none">{{.Body | markdown}}</div>
 		</div>
 	</div>`))
 
