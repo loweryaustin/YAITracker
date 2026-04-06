@@ -3,10 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
 )
 
 func (h *Handler) PostTag(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)
 	if err != nil {
@@ -26,9 +28,11 @@ func (h *Handler) PostTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.AddProjectTag(r.Context(), project.ID, tag, groupName)
+	if err := h.Store.AddProjectTag(r.Context(), project.ID, tag, groupName); err != nil {
+		http.Error(w, "add tag failed", http.StatusInternalServerError)
+		return
+	}
 
-	// Return updated tag list
 	h.renderProjectTags(w, r, project.ID, key)
 }
 
@@ -41,19 +45,28 @@ func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.RemoveProjectTag(r.Context(), project.ID, tag)
+	if err := h.Store.RemoveProjectTag(r.Context(), project.ID, tag); err != nil {
+		http.Error(w, "remove tag failed", http.StatusInternalServerError)
+		return
+	}
 	h.renderProjectTags(w, r, project.ID, key)
 }
 
 func (h *Handler) SuggestTags(w http.ResponseWriter, r *http.Request) {
 	q := h.queryParam(r, "q")
-	tags, _ := h.Store.SuggestTags(r.Context(), q)
+	tags, err := h.Store.SuggestTags(r.Context(), q)
+	if err != nil {
+		log.Printf("suggest tags: %v", err)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tags)
+	json.NewEncoder(w).Encode(tags) //nolint:errcheck // response write error is not recoverable
 }
 
 func (h *Handler) renderProjectTags(w http.ResponseWriter, r *http.Request, projectID, key string) {
-	tags, _ := h.Store.GetProjectTags(r.Context(), projectID)
+	tags, err := h.Store.GetProjectTags(r.Context(), projectID)
+	if err != nil {
+		log.Printf("get project tags: %v", err)
+	}
 
 	tagsTpl := template.Must(template.New("tags").Parse(`
 	<div class="flex flex-wrap gap-2 mb-3" id="project-tags">
@@ -68,8 +81,10 @@ func (h *Handler) renderProjectTags(w http.ResponseWriter, r *http.Request, proj
 	</div>`))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tagsTpl.Execute(w, struct {
+	if err := tagsTpl.Execute(w, struct {
 		Tags interface{}
 		Key  string
-	}{Tags: tags, Key: key})
+	}{Tags: tags, Key: key}); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }

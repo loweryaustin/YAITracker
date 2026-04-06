@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -43,7 +44,7 @@ func (s *Store) GetProjectByID(ctx context.Context, id string) (*model.Project, 
 	if err != nil {
 		return nil, err
 	}
-	p.Tags, _ = s.GetProjectTags(ctx, p.ID)
+	p.Tags, _ = s.GetProjectTags(ctx, p.ID) //nolint:errcheck // supplementary data
 	return p, nil
 }
 
@@ -54,7 +55,7 @@ func (s *Store) GetProjectByKey(ctx context.Context, key string) (*model.Project
 	if err != nil {
 		return nil, err
 	}
-	p.Tags, _ = s.GetProjectTags(ctx, p.ID)
+	p.Tags, _ = s.GetProjectTags(ctx, p.ID) //nolint:errcheck // supplementary data
 	return p, nil
 }
 
@@ -65,7 +66,7 @@ func (s *Store) ListProjects(ctx context.Context) ([]model.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var projects []model.Project
 	for rows.Next() {
@@ -73,7 +74,7 @@ func (s *Store) ListProjects(ctx context.Context) ([]model.Project, error) {
 		if err != nil {
 			return nil, err
 		}
-		p.Tags, _ = s.GetProjectTags(ctx, p.ID)
+		p.Tags, _ = s.GetProjectTags(ctx, p.ID) //nolint:errcheck // supplementary data
 		projects = append(projects, *p)
 	}
 	return projects, rows.Err()
@@ -86,29 +87,33 @@ func (s *Store) ListProjectSummaries(ctx context.Context) ([]model.ProjectSummar
 	}
 
 	summaries := make([]model.ProjectSummary, 0, len(projects))
-	for _, p := range projects {
+	for i := range projects {
 		var ps model.ProjectSummary
-		ps.Project = p
+		ps.Project = projects[i]
 
-		s.db.QueryRowContext(ctx,
+		if err := s.db.QueryRowContext(ctx,
 			`SELECT COUNT(*),
 			        SUM(CASE WHEN status NOT IN ('done','cancelled') THEN 1 ELSE 0 END),
 			        SUM(CASE WHEN status IN ('in_progress','in_review') THEN 1 ELSE 0 END),
 			        SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END),
 			        COALESCE(SUM(story_points), 0),
 			        COALESCE(SUM(CASE WHEN status = 'done' THEN story_points ELSE 0 END), 0)
-			 FROM issues WHERE project_id = ?`, p.ID,
+			 FROM issues WHERE project_id = ?`, projects[i].ID,
 		).Scan(&ps.TotalIssues, &ps.OpenIssues, &ps.InProgressIssues, &ps.DoneIssues,
-			&ps.TotalPoints, &ps.DonePoints)
+			&ps.TotalPoints, &ps.DonePoints); err != nil {
+			return nil, fmt.Errorf("scan issue summary: %w", err)
+		}
 
 		if ps.TotalIssues > 0 {
 			ps.ProgressPercent = float64(ps.DoneIssues) / float64(ps.TotalIssues) * 100
 		}
 
 		var totalSecs sql.NullInt64
-		s.db.QueryRowContext(ctx,
-			`SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE issue_id IN (SELECT id FROM issues WHERE project_id = ?)`, p.ID,
-		).Scan(&totalSecs)
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT COALESCE(SUM(duration), 0) FROM time_entries WHERE issue_id IN (SELECT id FROM issues WHERE project_id = ?)`, projects[i].ID,
+		).Scan(&totalSecs); err != nil {
+			return nil, fmt.Errorf("scan total time: %w", err)
+		}
 		if totalSecs.Valid {
 			ps.TotalTimeSeconds = totalSecs.Int64
 		}
@@ -168,7 +173,7 @@ func (s *Store) GetProjectMembers(ctx context.Context, projectID string) ([]mode
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var members []model.ProjectMember
 	for rows.Next() {
@@ -190,7 +195,7 @@ func (s *Store) scanProject(row *sql.Row) (*model.Project, error) {
 	err := row.Scan(&p.ID, &p.Key, &p.Name, &p.Description, &p.Status,
 		&targetDate, &budgetHours, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("project not found")
 		}
 		return nil, err

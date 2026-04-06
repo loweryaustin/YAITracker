@@ -65,7 +65,7 @@ func (s *Store) writeTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
+		tx.Rollback() //nolint:errcheck // rollback after failed tx is best-effort
 		return err
 	}
 
@@ -82,10 +82,6 @@ func NewToken() string {
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-func timePtr(t time.Time) *time.Time {
-	return &t
 }
 
 func scanNullTime(nt sql.NullTime) *time.Time {

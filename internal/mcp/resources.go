@@ -41,7 +41,10 @@ func resourceProjectDetail(st *store.Store) server.ResourceTemplateHandlerFunc {
 			return nil, fmt.Errorf("project %s not found", key)
 		}
 
-		health, _ := st.GetProjectHealth(ctx, p.ID)
+		health, err := st.GetProjectHealth(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get project health: %w", err)
+		}
 		result := map[string]interface{}{
 			"project": p,
 			"health":  health,
@@ -74,9 +77,18 @@ func resourceIssueDetail(st *store.Store) server.ResourceTemplateHandlerFunc {
 			return nil, fmt.Errorf("issue %s-%d not found", parts.key, parts.number)
 		}
 
-		comments, _ := st.ListComments(ctx, issue.ID)
-		timeEntries, _ := st.ListTimeEntries(ctx, issue.ID)
-		totalTime, _ := st.GetIssueTotalTime(ctx, issue.ID)
+		comments, err := st.ListComments(ctx, issue.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list comments: %w", err)
+		}
+		timeEntries, err := st.ListTimeEntries(ctx, issue.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list time entries: %w", err)
+		}
+		totalTime, err := st.GetIssueTotalTime(ctx, issue.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get issue total time: %w", err)
+		}
 
 		result := map[string]interface{}{
 			"issue":              issue,
@@ -104,7 +116,10 @@ func resourceBoard(st *store.Store) server.ResourceTemplateHandlerFunc {
 			return nil, fmt.Errorf("project %s not found", key)
 		}
 
-		columns, _ := st.ListIssuesByStatus(ctx, p.ID)
+		columns, err := st.ListIssuesByStatus(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list issues by status: %w", err)
+		}
 
 		return []mcp.ResourceContents{
 			mcp.TextResourceContents{
@@ -125,7 +140,10 @@ func resourceVelocity(st *store.Store) server.ResourceTemplateHandlerFunc {
 			return nil, fmt.Errorf("project %s not found", key)
 		}
 
-		velocity, _ := st.GetVelocity(ctx, p.ID, 8)
+		velocity, err := st.GetVelocity(ctx, p.ID, 8)
+		if err != nil {
+			return nil, fmt.Errorf("get velocity: %w", err)
+		}
 
 		return []mcp.ResourceContents{
 			mcp.TextResourceContents{
@@ -147,7 +165,7 @@ func parseIssueURI(uri string) issueURIParts {
 	if err != nil {
 		return issueURIParts{}
 	}
-	// yaitracker://projects/{key}/issues/{number}
+	// URI scheme: yaitracker, path: /projects/{key}/issues/{number}
 	path := strings.TrimPrefix(u.Path, "/")
 	if u.Host == "projects" {
 		path = u.Host + "/" + path
@@ -155,7 +173,10 @@ func parseIssueURI(uri string) issueURIParts {
 	parts := strings.Split(path, "/")
 	// parts: ["projects", "{key}", "issues", "{number}"]
 	if len(parts) >= 4 && parts[0] == "projects" && parts[2] == "issues" {
-		num, _ := strconv.Atoi(parts[3])
+		num, err := strconv.Atoi(parts[3])
+		if err != nil {
+			return issueURIParts{}
+		}
 		return issueURIParts{key: parts[1], number: num}
 	}
 	return issueURIParts{}

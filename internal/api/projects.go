@@ -63,11 +63,19 @@ func (a *API) CreateProject(w http.ResponseWriter, r *http.Request) {
 	for _, tag := range req.Tags {
 		tag = strings.TrimSpace(strings.ToLower(tag))
 		if tag != "" {
-			a.Store.AddProjectTag(r.Context(), p.ID, tag, "")
+			if err := a.Store.AddProjectTag(r.Context(), p.ID, tag, ""); err != nil {
+				a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+				return
+			}
 		}
 	}
 
-	p.Tags, _ = a.Store.GetProjectTags(r.Context(), p.ID)
+	var tagErr error
+	p.Tags, tagErr = a.Store.GetProjectTags(r.Context(), p.ID)
+	if tagErr != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", tagErr.Error())
+		return
+	}
 	a.jsonCreated(w, p)
 }
 
@@ -120,7 +128,10 @@ func (a *API) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		p.BudgetHours = req.BudgetHours
 	}
 
-	a.Store.UpdateProject(r.Context(), p)
+	if err := a.Store.UpdateProject(r.Context(), p); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, p)
 }
 
@@ -145,7 +156,11 @@ func (a *API) GetMembers(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusNotFound, "not_found", "Project not found")
 		return
 	}
-	members, _ := a.Store.GetProjectMembers(r.Context(), p.ID)
+	members, err := a.Store.GetProjectMembers(r.Context(), p.ID)
+	if err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	if members == nil {
 		members = []model.ProjectMember{}
 	}
@@ -172,6 +187,9 @@ func (a *API) AddMember(w http.ResponseWriter, r *http.Request) {
 		req.Role = "member"
 	}
 
-	a.Store.AddProjectMember(r.Context(), p.ID, req.UserID, req.Role)
+	if err := a.Store.AddProjectMember(r.Context(), p.ID, req.UserID, req.Role); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 }

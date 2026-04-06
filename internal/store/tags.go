@@ -14,7 +14,7 @@ func (s *Store) GetProjectTags(ctx context.Context, projectID string) ([]model.P
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var tags []model.ProjectTag
 	for rows.Next() {
@@ -60,7 +60,7 @@ func (s *Store) ListAllTags(ctx context.Context) ([]TagInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var tags []TagInfo
 	for rows.Next() {
@@ -79,7 +79,7 @@ func (s *Store) ListTagGroups(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var groups []string
 	for rows.Next() {
@@ -101,7 +101,7 @@ func (s *Store) SuggestTags(ctx context.Context, query string) ([]TagInfo, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var tags []TagInfo
 	for rows.Next() {

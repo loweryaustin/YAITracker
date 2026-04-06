@@ -31,11 +31,14 @@ func NewTestStore(t *testing.T) *store.Store {
 	migrateMu.Unlock()
 
 	if err != nil {
-		st.Close()
+		st.Close() //nolint:errcheck // best-effort close after failed migrate
 		t.Fatalf("testutil.NewTestStore: migrate: %v", err)
 	}
 
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() {
+		//nolint:errcheck // test teardown
+		st.Close()
+	})
 	return st
 }
 

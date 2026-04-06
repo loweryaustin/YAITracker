@@ -12,7 +12,11 @@ func (a *API) ListProjectTags(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusNotFound, "not_found", "Project not found")
 		return
 	}
-	tags, _ := a.Store.GetProjectTags(r.Context(), p.ID)
+	tags, err := a.Store.GetProjectTags(r.Context(), p.ID)
+	if err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, tags)
 }
 
@@ -39,7 +43,10 @@ func (a *API) AddProjectTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Store.AddProjectTag(r.Context(), p.ID, tag, req.GroupName)
+	if err := a.Store.AddProjectTag(r.Context(), p.ID, tag, req.GroupName); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -51,16 +58,27 @@ func (a *API) RemoveProjectTag(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusNotFound, "not_found", "Project not found")
 		return
 	}
-	a.Store.RemoveProjectTag(r.Context(), p.ID, tag)
+	if err := a.Store.RemoveProjectTag(r.Context(), p.ID, tag); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) ListAllTags(w http.ResponseWriter, r *http.Request) {
-	tags, _ := a.Store.ListAllTags(r.Context())
+	tags, err := a.Store.ListAllTags(r.Context())
+	if err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, tags)
 }
 
 func (a *API) ListTagGroups(w http.ResponseWriter, r *http.Request) {
-	groups, _ := a.Store.ListTagGroups(r.Context())
+	groups, err := a.Store.ListTagGroups(r.Context())
+	if err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, groups)
 }

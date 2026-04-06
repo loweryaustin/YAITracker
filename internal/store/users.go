@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,7 +45,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var users []model.User
 	for rows.Next() {
@@ -120,7 +121,7 @@ func (s *Store) scanUser(row *sql.Row) (*model.User, error) {
 	err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Password, &u.Role,
 		&u.FailedAttempts, &lockedUntil, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("user not found")
 		}
 		return nil, err

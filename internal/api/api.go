@@ -28,7 +28,7 @@ func (a *API) urlParam(r *http.Request, name string) string {
 }
 
 func (a *API) urlParamInt(r *http.Request, name string) int {
-	v, _ := strconv.Atoi(chi.URLParam(r, name))
+	v, _ := strconv.Atoi(chi.URLParam(r, name)) //nolint:errcheck // returns 0 on invalid input which is acceptable
 	return v
 }
 
@@ -55,19 +55,19 @@ type apiError struct {
 
 func (a *API) jsonOK(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	json.NewEncoder(w).Encode(data) //nolint:errcheck // response write error is not recoverable
 }
 
 func (a *API) jsonCreated(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(data)
+	json.NewEncoder(w).Encode(data) //nolint:errcheck // response write error is not recoverable
 }
 
 func (a *API) jsonError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(apiError{Error: code, Message: message})
+	json.NewEncoder(w).Encode(apiError{Error: code, Message: message}) //nolint:errcheck // response write error is not recoverable
 }
 
 func (a *API) decodeJSON(r *http.Request, v interface{}) error {

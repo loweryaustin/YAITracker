@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -21,7 +22,10 @@ func (h *Handler) GetLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userCount, _ := h.Store.CountUsers(r.Context())
+	userCount, err := h.Store.CountUsers(r.Context())
+	if err != nil {
+		log.Printf("count users: %v", err)
+	}
 	if userCount == 0 {
 		http.Redirect(w, r, "/register", http.StatusSeeOther)
 		return
@@ -31,6 +35,7 @@ func (h *Handler) GetLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		h.renderLogin(w, r, "Invalid form data", "")
 		return
@@ -57,15 +62,20 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !auth.CheckPassword(user.Password, password) {
-		count, _ := h.Store.IncrementFailedAttempts(r.Context(), user.ID)
+		count, err := h.Store.IncrementFailedAttempts(r.Context(), user.ID)
+		if err != nil {
+			log.Printf("increment failed attempts: %v", err)
+		}
 		if count >= lockoutThreshold {
-			h.Store.LockUser(r.Context(), user.ID, time.Now().UTC().Add(lockoutDuration))
-			h.Store.LogActivity(r.Context(), &model.ActivityLog{
+			if err := h.Store.LockUser(r.Context(), user.ID, time.Now().UTC().Add(lockoutDuration)); err != nil {
+				log.Printf("lock user: %v", err)
+			}
+			h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 				EntityType: "auth", UserID: user.ID, Action: "account_locked",
 				IPAddress: h.clientIP(r),
 			})
 		}
-		h.Store.LogActivity(r.Context(), &model.ActivityLog{
+		h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 			EntityType: "auth", UserID: user.ID, Action: "login_failed",
 			IPAddress: h.clientIP(r),
 		})
@@ -73,8 +83,9 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success: reset failed attempts and create session
-	h.Store.ResetFailedAttempts(r.Context(), user.ID)
+	if err := h.Store.ResetFailedAttempts(r.Context(), user.ID); err != nil {
+		log.Printf("reset failed attempts: %v", err)
+	}
 
 	sess, err := h.Store.CreateSession(r.Context(), user.ID, auth.SessionDuration)
 	if err != nil {
@@ -82,7 +93,7 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "auth", UserID: user.ID, Action: "login_success",
 		IPAddress: h.clientIP(r),
 	})
@@ -92,7 +103,10 @@ func (h *Handler) PostLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetRegister(w http.ResponseWriter, r *http.Request) {
-	userCount, _ := h.Store.CountUsers(r.Context())
+	userCount, err := h.Store.CountUsers(r.Context())
+	if err != nil {
+		log.Printf("count users: %v", err)
+	}
 	if userCount > 0 {
 		// Only allow registration if no users exist (first-run) or via invite
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -102,7 +116,11 @@ func (h *Handler) GetRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PostRegister(w http.ResponseWriter, r *http.Request) {
-	userCount, _ := h.Store.CountUsers(r.Context())
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	userCount, err := h.Store.CountUsers(r.Context())
+	if err != nil {
+		log.Printf("count users: %v", err)
+	}
 	if userCount > 0 {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -146,7 +164,7 @@ func (h *Handler) PostRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "auth", UserID: user.ID, Action: "register",
 		IPAddress: h.clientIP(r),
 	})
@@ -158,7 +176,9 @@ func (h *Handler) PostRegister(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PostLogout(w http.ResponseWriter, r *http.Request) {
 	sessionID := auth.GetSessionID(r)
 	if sessionID != "" {
-		h.Store.DeleteSession(r.Context(), sessionID)
+		if err := h.Store.DeleteSession(r.Context(), sessionID); err != nil {
+			log.Printf("delete session: %v", err)
+		}
 	}
 	auth.ClearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)

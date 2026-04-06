@@ -32,11 +32,14 @@ func (s *Server) Router() http.Handler {
 	// Health check
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		w.Write([]byte("ok")) //nolint:errcheck // health check response write
 	})
 
 	// Embedded static assets
-	staticSub, _ := fs.Sub(yaitracker.StaticFS, "static")
+	staticSub, err := fs.Sub(yaitracker.StaticFS, "static")
+	if err != nil {
+		panic("embedded static assets: " + err.Error())
+	}
 	fileServer := http.FileServer(http.FS(staticSub))
 	r.Handle("/static/*", http.StripPrefix("/static", fileServer))
 

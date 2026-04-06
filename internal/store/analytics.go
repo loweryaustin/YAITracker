@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"math"
 	"time"
 
@@ -25,7 +27,7 @@ func (s *Store) GetVelocity(ctx context.Context, projectID string, weeks int) (*
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	report := &model.VelocityReport{ProjectID: projectID}
 	var totalPoints, totalIssues int
@@ -35,7 +37,7 @@ func (s *Store) GetVelocity(ctx context.Context, projectID string, weeks int) (*
 		if err := rows.Scan(&weekStr, &vp.Points, &vp.IssueCount); err != nil {
 			return nil, err
 		}
-		vp.WeekStart, _ = time.Parse("2006-01-02", weekStr)
+		vp.WeekStart, _ = time.Parse("2006-01-02", weekStr) //nolint:errcheck // DB returns known format
 		report.Points = append(report.Points, vp)
 		totalPoints += vp.Points
 		totalIssues += vp.IssueCount
@@ -61,7 +63,7 @@ func (s *Store) GetCycleTimeStats(ctx context.Context, projectID string) ([]mode
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var stats []model.CycleTimeStats
 	for rows.Next() {
@@ -91,12 +93,12 @@ func (s *Store) GetEstimationReport(ctx context.Context, projectID string) (*mod
 		 )`,
 		projectID,
 	).Scan(&report.SampleSize, &report.AvgRatio)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 
 	// Hours per point
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT AVG(actual_hrs / story_points)
 		 FROM (
 		     SELECT i.story_points,
@@ -107,7 +109,9 @@ func (s *Store) GetEstimationReport(ctx context.Context, projectID string) (*mod
 		     GROUP BY i.id, i.story_points
 		 )`,
 		projectID,
-	).Scan(&report.HoursPerPoint)
+	).Scan(&report.HoursPerPoint); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("scan hours per point: %w", err)
+	}
 
 	return report, nil
 }
@@ -123,7 +127,7 @@ func (s *Store) GetTimeByType(ctx context.Context, projectID string) ([]model.Ti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var results []model.TimeByType
 	var totalSecs int64
@@ -154,21 +158,25 @@ func (s *Store) GetProjectHealth(ctx context.Context, projectID string) (*model.
 
 	// Progress
 	var total, done int
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT COUNT(*), SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END)
 		 FROM issues WHERE project_id = ?`, projectID,
-	).Scan(&total, &done)
+	).Scan(&total, &done); err != nil {
+		return nil, fmt.Errorf("scan progress: %w", err)
+	}
 	if total > 0 {
 		health.ProgressPercent = float64(done) / float64(total) * 100
 	}
 
 	// Budget
 	var totalHours sql.NullFloat64
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT CAST(COALESCE(SUM(te.duration), 0) AS REAL) / 3600.0
 		 FROM time_entries te
 		 WHERE te.issue_id IN (SELECT id FROM issues WHERE project_id = ?)`, projectID,
-	).Scan(&totalHours)
+	).Scan(&totalHours); err != nil {
+		return nil, fmt.Errorf("scan budget: %w", err)
+	}
 	if totalHours.Valid {
 		health.BudgetUsed = math.Round(totalHours.Float64*10) / 10
 	}
@@ -177,16 +185,17 @@ func (s *Store) GetProjectHealth(ctx context.Context, projectID string) (*model.
 	}
 
 	// Velocity trend
-	velocity, _ := s.GetVelocity(ctx, projectID, 8)
+	velocity, _ := s.GetVelocity(ctx, projectID, 8) //nolint:errcheck // velocity is optional for health
 	if velocity != nil && len(velocity.Points) >= 2 {
 		health.AvgVelocity = velocity.AvgPoints
 		recent := velocity.Points[len(velocity.Points)-1].Points
 		prev := velocity.Points[len(velocity.Points)-2].Points
-		if recent > prev {
+		switch {
+		case recent > prev:
 			health.VelocityTrend = "up"
-		} else if recent < prev {
+		case recent < prev:
 			health.VelocityTrend = "down"
-		} else {
+		default:
 			health.VelocityTrend = "stable"
 		}
 	}
@@ -218,7 +227,7 @@ func (s *Store) CompareByTag(ctx context.Context, groupName string) ([]model.Tag
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var comparisons []model.TagComparison
 	for rows.Next() {
@@ -232,7 +241,7 @@ func (s *Store) CompareByTag(ctx context.Context, groupName string) ([]model.Tag
 		}
 
 		// Compute metrics for projects with this tag
-		s.db.QueryRowContext(ctx,
+		if err := s.db.QueryRowContext(ctx,
 			`SELECT
 			    COALESCE(
 			        CAST(SUM(CASE WHEN i.type = 'bug' THEN 1 ELSE 0 END) AS REAL) /
@@ -249,16 +258,20 @@ func (s *Store) CompareByTag(ctx context.Context, groupName string) ([]model.Tag
 			 WHERE i.project_id IN (SELECT project_id FROM project_tags WHERE tag = ? AND group_name = ?)
 			   AND i.status = 'done'`,
 			tc.Tag, groupName,
-		).Scan(&tc.BugsPer100Hours, &tc.HoursPerPoint)
+		).Scan(&tc.BugsPer100Hours, &tc.HoursPerPoint); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("scan tag metrics: %w", err)
+		}
 
 		// Avg cycle time
-		s.db.QueryRowContext(ctx,
+		if err := s.db.QueryRowContext(ctx,
 			`SELECT COALESCE(AVG(JULIANDAY(SUBSTR(completed_at, 1, 19)) - JULIANDAY(SUBSTR(started_at, 1, 19))), 0)
 			 FROM issues
 			 WHERE project_id IN (SELECT project_id FROM project_tags WHERE tag = ? AND group_name = ?)
 			   AND status = 'done' AND started_at IS NOT NULL AND completed_at IS NOT NULL`,
 			tc.Tag, groupName,
-		).Scan(&tc.AvgCycleTimeDays)
+		).Scan(&tc.AvgCycleTimeDays); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("scan cycle time: %w", err)
+		}
 
 		tc.BugsPer100Hours = math.Round(tc.BugsPer100Hours*10) / 10
 		tc.HoursPerPoint = math.Round(tc.HoursPerPoint*10) / 10
@@ -288,10 +301,12 @@ func (s *Store) PredictNewProject(ctx context.Context, tags []string, points int
 	}
 
 	var matchCount int
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT COUNT(DISTINCT project_id) FROM project_tags WHERE tag IN (`+placeholders+`)`,
 		args...,
-	).Scan(&matchCount)
+	).Scan(&matchCount); err != nil {
+		return nil, fmt.Errorf("scan match count: %w", err)
+	}
 	pred.MatchingProjects = matchCount
 
 	if matchCount == 0 {
@@ -300,7 +315,7 @@ func (s *Store) PredictNewProject(ctx context.Context, tags []string, points int
 	}
 
 	// Hours per point from matching projects
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(AVG(CAST(te_dur.total_duration AS REAL) / 3600.0 / NULLIF(i.story_points, 0)), 0)
 		 FROM issues i
 		 LEFT JOIN (
@@ -310,12 +325,14 @@ func (s *Store) PredictNewProject(ctx context.Context, tags []string, points int
 		 WHERE i.project_id IN (SELECT DISTINCT project_id FROM project_tags WHERE tag IN (`+placeholders+`))
 		   AND i.status = 'done' AND i.story_points > 0`,
 		args...,
-	).Scan(&pred.HoursPerPoint)
+	).Scan(&pred.HoursPerPoint); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("scan hours per point: %w", err)
+	}
 
 	// Estimation ratio
 	estArgs := make([]interface{}, len(tags))
 	copy(estArgs, args)
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(AVG(actual_hrs / estimated_hours), 1.0)
 		 FROM (
 		     SELECT i.estimated_hours,
@@ -327,12 +344,14 @@ func (s *Store) PredictNewProject(ctx context.Context, tags []string, points int
 		     GROUP BY i.id, i.estimated_hours
 		 )`,
 		estArgs...,
-	).Scan(&pred.EstimationRatio)
+	).Scan(&pred.EstimationRatio); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("scan estimation ratio: %w", err)
+	}
 
 	// Bug rate
 	bugArgs := make([]interface{}, len(tags))
 	copy(bugArgs, args)
-	s.db.QueryRowContext(ctx,
+	if err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(
 		     CAST(SUM(CASE WHEN i.type = 'bug' THEN 1 ELSE 0 END) AS REAL) /
 		     NULLIF(CAST(SUM(te_dur.total_duration) AS REAL) / 360000.0, 0),
@@ -345,7 +364,9 @@ func (s *Store) PredictNewProject(ctx context.Context, tags []string, points int
 		 WHERE i.project_id IN (SELECT DISTINCT project_id FROM project_tags WHERE tag IN (`+placeholders+`))
 		   AND i.status = 'done'`,
 		bugArgs...,
-	).Scan(&pred.BugsPer100Hours)
+	).Scan(&pred.BugsPer100Hours); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("scan bug rate: %w", err)
+	}
 
 	if pred.HoursPerPoint > 0 {
 		pred.RawHours = float64(points) * pred.HoursPerPoint

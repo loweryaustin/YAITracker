@@ -31,15 +31,25 @@ func (a *API) PostToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !auth.CheckPassword(user.Password, req.Password) {
-		count, _ := a.Store.IncrementFailedAttempts(r.Context(), user.ID)
+		count, err := a.Store.IncrementFailedAttempts(r.Context(), user.ID)
+		if err != nil {
+			a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not update login attempts")
+			return
+		}
 		if count >= 10 {
-			a.Store.LockUser(r.Context(), user.ID, time.Now().UTC().Add(15*time.Minute))
+			if err := a.Store.LockUser(r.Context(), user.ID, time.Now().UTC().Add(15*time.Minute)); err != nil {
+				a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not lock account")
+				return
+			}
 		}
 		a.jsonError(w, http.StatusUnauthorized, "invalid_credentials", "Invalid email or password")
 		return
 	}
 
-	a.Store.ResetFailedAttempts(r.Context(), user.ID)
+	if err := a.Store.ResetFailedAttempts(r.Context(), user.ID); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not reset login attempts")
+		return
+	}
 
 	token, err := a.Store.CreateOAuthToken(r.Context(), user.ID, req.ClientName)
 	if err != nil {
@@ -47,7 +57,7 @@ func (a *API) PostToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Store.LogActivity(r.Context(), &model.ActivityLog{
+	a.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit logging
 		EntityType: "auth", UserID: user.ID, Action: "token_issued",
 		NewValue: req.ClientName, IPAddress: a.clientIP(r),
 	})
@@ -95,7 +105,7 @@ func (a *API) DeleteToken(w http.ResponseWriter, r *http.Request) {
 		accessToken := authHeader[7:]
 		tok, err := a.Store.GetOAuthTokenByAccess(r.Context(), accessToken)
 		if err == nil {
-			a.Store.DeleteOAuthToken(r.Context(), tok.ID)
+			a.Store.DeleteOAuthToken(r.Context(), tok.ID) //nolint:errcheck // best-effort revocation
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)

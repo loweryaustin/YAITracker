@@ -2,6 +2,7 @@ package handler
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -150,11 +151,26 @@ func (h *Handler) GetProjectAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	health, _ := h.Store.GetProjectHealth(r.Context(), project.ID)
-	velocity, _ := h.Store.GetVelocity(r.Context(), project.ID, 8)
-	cycleTime, _ := h.Store.GetCycleTimeStats(r.Context(), project.ID)
-	estimation, _ := h.Store.GetEstimationReport(r.Context(), project.ID)
-	timeByType, _ := h.Store.GetTimeByType(r.Context(), project.ID)
+	health, err := h.Store.GetProjectHealth(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("get project health: %v", err)
+	}
+	velocity, err := h.Store.GetVelocity(r.Context(), project.ID, 8)
+	if err != nil {
+		log.Printf("get velocity: %v", err)
+	}
+	cycleTime, err := h.Store.GetCycleTimeStats(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("get cycle time stats: %v", err)
+	}
+	estimation, err := h.Store.GetEstimationReport(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("get estimation report: %v", err)
+	}
+	timeByType, err := h.Store.GetTimeByType(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("get time by type: %v", err)
+	}
 
 	if health == nil {
 		health = &model.ProjectHealth{ProjectID: project.ID, Status: "on_track"}
@@ -176,7 +192,7 @@ func (h *Handler) GetProjectAnalytics(w http.ResponseWriter, r *http.Request) {
 	})
 	pd.ProjectKey = key
 	pd.ActiveTab = "analytics"
-	h.renderApp(w, r, "project-analytics", projectAnalyticsTpl, pd)
+	h.renderApp(w, "project-analytics", projectAnalyticsTpl, pd)
 }
 
 // Cross-project comparison
@@ -236,11 +252,17 @@ var compareTpl = template.Must(template.New("compare").Funcs(funcMap).Parse(appL
 
 func (h *Handler) GetCompare(w http.ResponseWriter, r *http.Request) {
 	groupBy := h.queryParam(r, "group_by")
-	groups, _ := h.Store.ListTagGroups(r.Context())
+	groups, err := h.Store.ListTagGroups(r.Context())
+	if err != nil {
+		log.Printf("list tag groups: %v", err)
+	}
 
 	var comparisons []model.TagComparison
 	if groupBy != "" {
-		comparisons, _ = h.Store.CompareByTag(r.Context(), groupBy)
+		comparisons, err = h.Store.CompareByTag(r.Context(), groupBy)
+		if err != nil {
+			log.Printf("compare by tag: %v", err)
+		}
 	}
 
 	pd := h.newPageData(r, "Compare", compareData{
@@ -249,7 +271,7 @@ func (h *Handler) GetCompare(w http.ResponseWriter, r *http.Request) {
 		Comparisons: comparisons,
 	})
 	pd.ActiveNav = "compare"
-	h.renderApp(w, r, "compare", compareTpl, pd)
+	h.renderApp(w, "compare", compareTpl, pd)
 }
 
 // Predict
@@ -305,7 +327,7 @@ var predictTpl = template.Must(template.New("predict").Funcs(funcMap).Parse(appL
 func (h *Handler) GetPredict(w http.ResponseWriter, r *http.Request) {
 	tagsStr := h.queryParam(r, "tags")
 	pointsStr := h.queryParam(r, "points")
-	points, _ := strconv.Atoi(pointsStr)
+	points, _ := strconv.Atoi(pointsStr) //nolint:errcheck // returns 0 on invalid input
 
 	var prediction *model.ProjectPrediction
 	if tagsStr != "" && points > 0 {
@@ -316,7 +338,11 @@ func (h *Handler) GetPredict(w http.ResponseWriter, r *http.Request) {
 				tags = append(tags, t)
 			}
 		}
-		prediction, _ = h.Store.PredictNewProject(r.Context(), tags, points)
+		var err error
+		prediction, err = h.Store.PredictNewProject(r.Context(), tags, points)
+		if err != nil {
+			log.Printf("predict new project: %v", err)
+		}
 	}
 
 	pd := h.newPageData(r, "Predict", predictData{
@@ -325,5 +351,5 @@ func (h *Handler) GetPredict(w http.ResponseWriter, r *http.Request) {
 		Prediction: prediction,
 	})
 	pd.ActiveNav = "compare"
-	h.renderApp(w, r, "predict", predictTpl, pd)
+	h.renderApp(w, "predict", predictTpl, pd)
 }
