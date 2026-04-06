@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
@@ -12,11 +13,12 @@ const (
 	CSRFFormField  = "_csrf"
 )
 
+type csrfCtxKey struct{}
+
 func CSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Read-only methods don't need CSRF
 		if r.Method == "GET" || r.Method == "HEAD" || r.Method == "OPTIONS" {
-			ensureCSRFCookie(w, r)
+			r = ensureCSRFCookie(w, r)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -27,7 +29,6 @@ func CSRF(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check header first, then form field
 		token := r.Header.Get(CSRFHeaderName)
 		if token == "" {
 			token = r.FormValue(CSRFFormField)
@@ -42,9 +43,12 @@ func CSRF(next http.Handler) http.Handler {
 	})
 }
 
-func ensureCSRFCookie(w http.ResponseWriter, r *http.Request) {
-	if _, err := r.Cookie(CSRFCookieName); err == nil {
-		return
+// ensureCSRFCookie sets the CSRF cookie if absent and stashes the token in
+// the request context so GetCSRFToken works even on the first page load
+// (before the browser has stored the Set-Cookie response).
+func ensureCSRFCookie(w http.ResponseWriter, r *http.Request) *http.Request {
+	if c, err := r.Cookie(CSRFCookieName); err == nil && c.Value != "" {
+		return r.WithContext(context.WithValue(r.Context(), csrfCtxKey{}, c.Value))
 	}
 	b := make([]byte, 32)
 	_, _ = rand.Read(b)
@@ -57,9 +61,15 @@ func ensureCSRFCookie(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: false, // JS needs to read this for htmx hx-headers
 		SameSite: http.SameSiteLaxMode,
 	})
+	return r.WithContext(context.WithValue(r.Context(), csrfCtxKey{}, token))
 }
 
+// GetCSRFToken returns the CSRF token for the current request, preferring
+// the context value (set by the middleware) over the raw cookie.
 func GetCSRFToken(r *http.Request) string {
+	if tok, ok := r.Context().Value(csrfCtxKey{}).(string); ok && tok != "" {
+		return tok
+	}
 	cookie, err := r.Cookie(CSRFCookieName)
 	if err != nil {
 		return ""
