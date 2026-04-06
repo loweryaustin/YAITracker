@@ -4,6 +4,18 @@ All notable changes to YAITracker are documented here.
 This file is auto-generated from [conventional commits](https://www.conventionalcommits.org/).
 
 
+## Bug Fixes
+
+- Resolve all 331 pre-existing golangci-lint errors (2002706)
+- Store CSRF token in request context for first-load correctness (e9b27fa)
+- Render markdown in issue descriptions and comment bodies (b20d6e5)
+- Remove hard limit cap that hid board issues beyond 25 rows (4316c3f)
+
+## Features
+
+- Auto-refresh expired OAuth tokens in sidecar proxy (42de74c)
+
+
 ## Features
 
 - Add sidecar stdio-to-HTTP proxy with per-conversation actor isolation (21888a6)

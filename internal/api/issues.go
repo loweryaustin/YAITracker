@@ -21,7 +21,7 @@ func (a *API) ListIssues(w http.ResponseWriter, r *http.Request) {
 		Query:     a.queryParam(r, "q"),
 		SortBy:    a.queryParam(r, "sort"),
 		SortDir:   a.queryParam(r, "dir"),
-		Limit:     a.queryParamInt(r, "limit", 25),
+		Limit:     min(a.queryParamInt(r, "limit", 25), 100),
 		Offset:    a.queryParamInt(r, "offset", 0),
 	}
 
@@ -192,11 +192,17 @@ func (a *API) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Status != nil && *req.Status != issue.Status {
-		a.Store.UpdateIssueStatus(r.Context(), issue.ID, *req.Status)
+		if err := a.Store.UpdateIssueStatus(r.Context(), issue.ID, *req.Status); err != nil {
+			a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+			return
+		}
 		issue.Status = *req.Status
 	}
 
-	a.Store.UpdateIssue(r.Context(), issue)
+	if err := a.Store.UpdateIssue(r.Context(), issue); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, issue)
 }
 
@@ -216,7 +222,10 @@ func (a *API) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Store.DeleteIssue(r.Context(), issue.ID)
+	if err := a.Store.DeleteIssue(r.Context(), issue.ID); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -247,7 +256,10 @@ func (a *API) MoveIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Store.MoveIssue(r.Context(), req.IssueID, req.Status, req.SortOrder)
+	if err := a.Store.MoveIssue(r.Context(), req.IssueID, req.Status, req.SortOrder); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"ok":true}`)
+	fmt.Fprintf(w, `{"ok":true}`) //nolint:errcheck // response write error is not recoverable
 }

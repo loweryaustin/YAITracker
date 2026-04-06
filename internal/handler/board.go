@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
 
 	"yaitracker.com/loweryaustin/internal/model"
@@ -113,7 +114,10 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	columns, _ := h.Store.ListIssuesByStatus(r.Context(), project.ID)
+	columns, err := h.Store.ListIssuesByStatus(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("list issues by status: %v", err)
+	}
 
 	pd := h.newPageData(r, project.Name+" - Board", boardData{
 		Project:  project,
@@ -122,7 +126,7 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	})
 	pd.ProjectKey = key
 	pd.ActiveTab = "board"
-	h.renderApp(w, r, "board", boardTpl, pd)
+	h.renderApp(w, "board", boardTpl, pd)
 }
 
 func (h *Handler) PatchBoardMove(w http.ResponseWriter, r *http.Request) {
@@ -147,13 +151,16 @@ func (h *Handler) PatchBoardMove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if issue.Status != req.Status {
-		h.Store.LogActivity(r.Context(), &model.ActivityLog{
+		h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 			EntityType: "issue", EntityID: issue.ID, UserID: user.ID,
 			Action: "changed", Field: "status", OldValue: issue.Status, NewValue: req.Status,
 			IPAddress: h.clientIP(r),
 		})
 	}
 
-	h.Store.MoveIssue(r.Context(), req.IssueID, req.Status, req.SortOrder)
+	if err := h.Store.MoveIssue(r.Context(), req.IssueID, req.Status, req.SortOrder); err != nil {
+		http.Error(w, "move failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }

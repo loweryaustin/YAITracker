@@ -19,7 +19,7 @@ type contextKey string
 const userContextKey contextKey = "user"
 
 func UserFromContext(ctx context.Context) *model.User {
-	u, _ := ctx.Value(userContextKey).(*model.User)
+	u, _ := ctx.Value(userContextKey).(*model.User) //nolint:errcheck // returns nil on missing context value
 	return u
 }
 

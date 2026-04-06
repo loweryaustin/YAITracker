@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,7 +43,7 @@ func (s *Store) GetMCPActorForUser(ctx context.Context, userID, actorID string) 
 		actorID, userID,
 	).Scan(&a.ID, &a.UserID, &a.Label, &a.CreatedAt, &hb)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("mcp actor not found or revoked")
 		}
 		return nil, fmt.Errorf("get mcp actor: %w", err)

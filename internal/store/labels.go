@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,7 +27,7 @@ func (s *Store) GetLabel(ctx context.Context, id string) (*model.Label, error) {
 		`SELECT id, project_id, name, color FROM labels WHERE id = ?`, id,
 	).Scan(&l.ID, &l.ProjectID, &l.Name, &l.Color)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("label not found")
 		}
 		return nil, err
@@ -47,7 +48,7 @@ func (s *Store) GetLabelByName(ctx context.Context, projectID, name string) (*mo
 		projectID, name,
 	).Scan(&l.ID, &l.ProjectID, &l.Name, &l.Color)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
@@ -62,7 +63,7 @@ func (s *Store) ListLabels(ctx context.Context, projectID string) ([]model.Label
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var labels []model.Label
 	for rows.Next() {
@@ -120,7 +121,7 @@ func (s *Store) GetIssueLabels(ctx context.Context, issueID string) ([]model.Lab
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var labels []model.Label
 	for rows.Next() {

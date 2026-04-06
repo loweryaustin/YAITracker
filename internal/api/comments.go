@@ -68,7 +68,10 @@ func (a *API) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Body = req.Body
-	a.Store.UpdateComment(r.Context(), c)
+	if err := a.Store.UpdateComment(r.Context(), c); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, c)
 }
 
@@ -86,6 +89,9 @@ func (a *API) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Store.DeleteComment(r.Context(), id)
+	if err := a.Store.DeleteComment(r.Context(), id); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

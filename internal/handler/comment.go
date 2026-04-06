@@ -8,6 +8,7 @@ import (
 )
 
 func (h *Handler) PostComment(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	number := h.urlParamInt(r, "number")
 
@@ -46,7 +47,7 @@ func (h *Handler) PostComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "issue", EntityID: issue.ID, UserID: user.ID,
 		Action: "commented", IPAddress: h.clientIP(r),
 	})
@@ -62,16 +63,19 @@ func (h *Handler) PostComment(w http.ResponseWriter, r *http.Request) {
 				<span class="font-medium text-sm">{{.Author.Name}}</span>
 				<span class="text-xs text-slate-400">just now</span>
 			</div>
-			<div class="text-sm text-slate-700">{{.Body}}</div>
+			<div class="text-sm text-slate-700 prose prose-sm max-w-none">{{.Body | markdown}}</div>
 		</div>
 	</div>`))
 
 	comment.Author = user
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	commentFragment.Execute(w, comment)
+	if err := commentFragment.Execute(w, comment); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) PatchComment(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	id := h.urlParam(r, "id")
 	comment, err := h.Store.GetComment(r.Context(), id)
 	if err != nil {
@@ -91,7 +95,10 @@ func (h *Handler) PatchComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	comment.Body = r.FormValue("body")
-	h.Store.UpdateComment(r.Context(), comment)
+	if err := h.Store.UpdateComment(r.Context(), comment); err != nil {
+		http.Error(w, "update failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -109,6 +116,9 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Store.DeleteComment(r.Context(), id)
+	if err := h.Store.DeleteComment(r.Context(), id); err != nil {
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }

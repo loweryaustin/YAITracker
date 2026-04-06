@@ -7,6 +7,7 @@ require (
 	github.com/mark3labs/mcp-go v0.46.0
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/spf13/cobra v1.10.2
+	github.com/yuin/goldmark v1.8.2
 	golang.org/x/crypto v0.49.0
 	modernc.org/sqlite v1.48.1
 )

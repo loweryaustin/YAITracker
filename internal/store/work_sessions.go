@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,7 +28,7 @@ func (s *Store) CreateWorkSession(ctx context.Context, userID, description strin
 		if err == nil {
 			return fmt.Errorf("active work session already exists (id: %s)", existing)
 		}
-		if err != sql.ErrNoRows {
+		if !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("check active session: %w", err)
 		}
 
@@ -52,7 +53,7 @@ func (s *Store) GetActiveWorkSession(ctx context.Context, userID string) (*model
 		 FROM work_sessions WHERE user_id = ? AND ended_at IS NULL`, userID,
 	).Scan(&ws.ID, &ws.UserID, &desc, &ws.StartedAt, &ws.CreatedAt, &ws.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("get active work session: %w", err)
@@ -80,7 +81,7 @@ func (s *Store) EndWorkSession(ctx context.Context, userID string) (*model.WorkS
 			 WHERE user_id = ? AND ended_at IS NULL`, userID,
 		).Scan(&ws.ID, &ws.UserID, &desc, &startedAt)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("no active work session")
 			}
 			return fmt.Errorf("find active session: %w", err)
@@ -119,7 +120,7 @@ func (s *Store) EndWorkSession(ctx context.Context, userID string) (*model.WorkS
 			if err != nil {
 				return fmt.Errorf("auto-stop human timer: %w", err)
 			}
-		} else if err != sql.ErrNoRows {
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("check human timer: %w", err)
 		}
 
@@ -138,7 +139,7 @@ func (s *Store) ListRecentWorkSessions(ctx context.Context, userID string, limit
 	if err != nil {
 		return nil, fmt.Errorf("list recent work sessions: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var sessions []model.WorkSession
 	for rows.Next() {

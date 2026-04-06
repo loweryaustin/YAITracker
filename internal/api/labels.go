@@ -13,7 +13,11 @@ func (a *API) ListLabels(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusNotFound, "not_found", "Project not found")
 		return
 	}
-	labels, _ := a.Store.ListLabels(r.Context(), p.ID)
+	labels, err := a.Store.ListLabels(r.Context(), p.ID)
+	if err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	if labels == nil {
 		labels = []model.Label{}
 	}
@@ -67,12 +71,18 @@ func (a *API) UpdateLabel(w http.ResponseWriter, r *http.Request) {
 	if req.Color != nil {
 		label.Color = *req.Color
 	}
-	a.Store.UpdateLabel(r.Context(), label)
+	if err := a.Store.UpdateLabel(r.Context(), label); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, label)
 }
 
 func (a *API) DeleteLabel(w http.ResponseWriter, r *http.Request) {
 	id := a.urlParam(r, "id")
-	a.Store.DeleteLabel(r.Context(), id)
+	if err := a.Store.DeleteLabel(r.Context(), id); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

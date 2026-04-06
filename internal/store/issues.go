@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,9 +20,11 @@ func (s *Store) CreateIssue(ctx context.Context, issue *model.Issue) error {
 
 		// Auto-increment number per project
 		var maxNum sql.NullInt64
-		tx.QueryRowContext(ctx,
+		if err := tx.QueryRowContext(ctx,
 			`SELECT MAX(number) FROM issues WHERE project_id = ?`, issue.ProjectID,
-		).Scan(&maxNum)
+		).Scan(&maxNum); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("scan max number: %w", err)
+		}
 		if maxNum.Valid {
 			issue.Number = int(maxNum.Int64) + 1
 		} else {
@@ -66,7 +69,7 @@ func (s *Store) GetIssue(ctx context.Context, id string) (*model.Issue, error) {
 	if err != nil {
 		return nil, err
 	}
-	issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID)
+	issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID) //nolint:errcheck // supplementary data
 	return issue, nil
 }
 
@@ -79,7 +82,7 @@ func (s *Store) GetIssueByNumber(ctx context.Context, projectID string, number i
 	if err != nil {
 		return nil, err
 	}
-	issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID)
+	issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID) //nolint:errcheck // supplementary data
 	return issue, nil
 }
 
@@ -137,7 +140,9 @@ func (s *Store) ListIssues(ctx context.Context, filter model.IssueFilter) ([]mod
 	// Count
 	var total int
 	countQuery := "SELECT COUNT(*) FROM issues i " + where
-	s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	if err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("scan count: %w", err)
+	}
 
 	// Sort
 	orderBy := "i.created_at DESC"
@@ -157,8 +162,10 @@ func (s *Store) ListIssues(ctx context.Context, filter model.IssueFilter) ([]mod
 	}
 
 	limit := filter.Limit
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 25
+	} else if limit > 10000 {
+		limit = 10000
 	}
 	offset := filter.Offset
 	if offset < 0 {
@@ -176,7 +183,7 @@ func (s *Store) ListIssues(ctx context.Context, filter model.IssueFilter) ([]mod
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var issues []model.Issue
 	for rows.Next() {
@@ -184,7 +191,7 @@ func (s *Store) ListIssues(ctx context.Context, filter model.IssueFilter) ([]mod
 		if err != nil {
 			return nil, 0, err
 		}
-		issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID)
+		issue.Labels, _ = s.GetIssueLabels(ctx, issue.ID) //nolint:errcheck // supplementary data
 		issues = append(issues, *issue)
 	}
 	return issues, total, rows.Err()
@@ -205,8 +212,8 @@ func (s *Store) ListIssuesByStatus(ctx context.Context, projectID string) (map[s
 	for _, status := range model.IssueStatuses {
 		result[status] = []model.Issue{}
 	}
-	for _, issue := range issues {
-		result[issue.Status] = append(result[issue.Status], issue)
+	for i := range issues {
+		result[issues[i].Status] = append(result[issues[i].Status], issues[i])
 	}
 	return result, nil
 }
@@ -318,7 +325,7 @@ func (s *Store) MapIssueIDToNumber(ctx context.Context, projectID string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	out := make(map[string]int)
 	for rows.Next() {
@@ -340,7 +347,7 @@ func (s *Store) MapParentIDToChildNumbers(ctx context.Context, projectID string)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	out := make(map[string][]int)
 	for rows.Next() {
@@ -363,7 +370,7 @@ func (s *Store) GetChildIssues(ctx context.Context, parentID string) ([]model.Is
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var issues []model.Issue
 	for rows.Next() {
@@ -389,7 +396,7 @@ func (s *Store) scanIssue(row *sql.Row) (*model.Issue, error) {
 		&i.SortOrder, &storyPoints, &estimatedHours,
 		&startedAt, &completedAt, &i.CreatedAt, &i.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("issue not found")
 		}
 		return nil, err
