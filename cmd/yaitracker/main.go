@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -90,7 +91,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
-	defer st.Close()
+	defer st.Close() //nolint:errcheck // best-effort cleanup on shutdown
 
 	if err := store.Migrate(st.DB(), yaitracker.MigrationsFS, "migrations"); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
@@ -115,7 +116,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	go func() {
 		log.Printf("YAITracker listening on %s", flagAddr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("listen: %v", err)
 		}
 	}()

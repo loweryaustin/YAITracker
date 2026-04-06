@@ -129,11 +129,21 @@ func TestListRecentWorkSessions(t *testing.T) {
 	ctx := context.Background()
 	u := testutil.SeedUser(t, st)
 
-	ws1, _ := st.CreateWorkSession(ctx, u.ID, "first")
-	st.EndWorkSession(ctx, u.ID)
+	ws1, err := st.CreateWorkSession(ctx, u.ID, "first")
+	if err != nil {
+		t.Fatalf("CreateWorkSession(first): %v", err)
+	}
+	if _, err := st.EndWorkSession(ctx, u.ID); err != nil {
+		t.Fatalf("EndWorkSession(first): %v", err)
+	}
 
-	ws2, _ := st.CreateWorkSession(ctx, u.ID, "second")
-	st.EndWorkSession(ctx, u.ID)
+	ws2, err := st.CreateWorkSession(ctx, u.ID, "second")
+	if err != nil {
+		t.Fatalf("CreateWorkSession(second): %v", err)
+	}
+	if _, err := st.EndWorkSession(ctx, u.ID); err != nil {
+		t.Fatalf("EndWorkSession(second): %v", err)
+	}
 
 	sessions, err := st.ListRecentWorkSessions(ctx, u.ID, 10)
 	if err != nil {
@@ -164,8 +174,12 @@ func TestGetSessionUtilization(t *testing.T) {
 	if _, err := st.StartTimer(ctx, issue.ID, u.ID, "human", ws.ID, "", ""); err != nil {
 		t.Fatalf("StartTimer: %v", err)
 	}
-	st.StopTimer(ctx, u.ID)
-	st.EndWorkSession(ctx, u.ID)
+	if _, err := st.StopTimer(ctx, u.ID); err != nil {
+		t.Fatalf("StopTimer: %v", err)
+	}
+	if _, err := st.EndWorkSession(ctx, u.ID); err != nil {
+		t.Fatalf("EndWorkSession: %v", err)
+	}
 
 	util, err := st.GetSessionUtilization(ctx, ws.ID)
 	if err != nil {

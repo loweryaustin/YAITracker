@@ -20,8 +20,8 @@ func (a *API) StartTimer(w http.ResponseWriter, r *http.Request) {
 	user := a.currentUser(r)
 
 	// Ensure a work session exists for the human
-	sessionID := ""
-	ws, _ := a.Store.GetActiveWorkSession(r.Context(), user.ID)
+	var sessionID string
+	ws, _ := a.Store.GetActiveWorkSession(r.Context(), user.ID) //nolint:errcheck // nil ws handled below
 	if ws != nil {
 		sessionID = ws.ID
 	} else {
@@ -93,7 +93,7 @@ func (a *API) CreateTimeEntry(w http.ResponseWriter, r *http.Request) {
 
 	var startedAt time.Time
 	if req.Date != "" {
-		startedAt, _ = time.Parse("2006-01-02", req.Date)
+		startedAt, _ = time.Parse("2006-01-02", req.Date) //nolint:errcheck // zero-value fallback below
 	}
 	if startedAt.IsZero() {
 		startedAt = now.Add(-time.Duration(durationSecs) * time.Second)
@@ -139,13 +139,19 @@ func (a *API) UpdateTimeEntry(w http.ResponseWriter, r *http.Request) {
 		entry.Description = *req.Description
 	}
 
-	a.Store.UpdateTimeEntry(r.Context(), entry)
+	if err := a.Store.UpdateTimeEntry(r.Context(), entry); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	a.jsonOK(w, entry)
 }
 
 func (a *API) DeleteTimeEntry(w http.ResponseWriter, r *http.Request) {
 	id := a.urlParam(r, "id")
-	a.Store.DeleteTimeEntry(r.Context(), id)
+	if err := a.Store.DeleteTimeEntry(r.Context(), id); err != nil {
+		a.jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -157,10 +163,10 @@ func (a *API) GetTimesheet(w http.ResponseWriter, r *http.Request) {
 
 	var startDate, endDate time.Time
 	if from != "" {
-		startDate, _ = time.Parse("2006-01-02", from)
+		startDate, _ = time.Parse("2006-01-02", from) //nolint:errcheck // zero-value fallback below
 	}
 	if to != "" {
-		endDate, _ = time.Parse("2006-01-02", to)
+		endDate, _ = time.Parse("2006-01-02", to) //nolint:errcheck // zero-value fallback below
 	}
 	if startDate.IsZero() {
 		now := time.Now()
@@ -186,7 +192,7 @@ func (a *API) GetTimesheet(w http.ResponseWriter, r *http.Request) {
 		a.jsonError(w, http.StatusInternalServerError, "server_error", "Could not load timesheet")
 		return
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var entries []model.TimeEntry
 	for rows.Next() {

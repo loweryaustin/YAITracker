@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -46,7 +47,7 @@ func (s *Store) GetOAuthTokenByAccess(ctx context.Context, accessToken string) (
 	).Scan(&tok.ID, &tok.UserID, &tok.AccessToken, &tok.RefreshToken,
 		&tok.AccessExpiresAt, &tok.RefreshExpiresAt, &clientName, &tok.CreatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("token not found or expired")
 		}
 		return nil, err
@@ -67,7 +68,7 @@ func (s *Store) GetOAuthTokenByRefresh(ctx context.Context, refreshToken string)
 	).Scan(&tok.ID, &tok.UserID, &tok.AccessToken, &tok.RefreshToken,
 		&tok.AccessExpiresAt, &tok.RefreshExpiresAt, &clientName, &tok.CreatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("refresh token not found")
 		}
 		return nil, err
@@ -144,8 +145,9 @@ func (s *Store) CleanExpiredTokens(ctx context.Context) (int64, error) {
 		if err != nil {
 			return err
 		}
-		count, _ = result.RowsAffected()
-		return nil
+		var raErr error
+		count, raErr = result.RowsAffected()
+		return raErr
 	})
 	return count, err
 }

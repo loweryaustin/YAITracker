@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +38,7 @@ func (s *Store) GetSession(ctx context.Context, id string) (*model.Session, erro
 		id, time.Now().UTC(),
 	).Scan(&sess.ID, &sess.UserID, &sess.ExpiresAt, &sess.CreatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("session not found or expired")
 		}
 		return nil, err
@@ -66,8 +67,9 @@ func (s *Store) CleanExpiredSessions(ctx context.Context) (int64, error) {
 		if err != nil {
 			return err
 		}
-		count, _ = result.RowsAffected()
-		return nil
+		var raErr error
+		count, raErr = result.RowsAffected()
+		return raErr
 	})
 	return count, err
 }

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,7 +33,7 @@ func (s *Store) GetComment(ctx context.Context, id string) (*model.Comment, erro
 		 FROM comments c WHERE c.id = ?`, id,
 	).Scan(&c.ID, &c.IssueID, &c.AuthorID, &c.Body, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("comment not found")
 		}
 		return nil, err
@@ -49,7 +50,7 @@ func (s *Store) ListComments(ctx context.Context, issueID string) ([]model.Comme
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var comments []model.Comment
 	for rows.Next() {

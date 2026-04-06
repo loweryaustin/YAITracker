@@ -99,7 +99,7 @@ func (a *API) Compare(w http.ResponseWriter, r *http.Request) {
 func (a *API) Predict(w http.ResponseWriter, r *http.Request) {
 	tagsStr := a.queryParam(r, "tags")
 	pointsStr := a.queryParam(r, "points")
-	points, _ := strconv.Atoi(pointsStr)
+	points, _ := strconv.Atoi(pointsStr) //nolint:errcheck // returns 0 on invalid input, checked below
 
 	if tagsStr == "" || points <= 0 {
 		a.jsonError(w, http.StatusBadRequest, "validation_error", "tags and points parameters required")

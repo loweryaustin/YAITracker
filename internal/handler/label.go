@@ -7,6 +7,7 @@ import (
 )
 
 func (h *Handler) PostLabel(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)
 	if err != nil {
@@ -39,6 +40,7 @@ func (h *Handler) PostLabel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PatchLabel(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	id := h.urlParam(r, "id")
 	label, err := h.Store.GetLabel(r.Context(), id)
 	if err != nil {
@@ -58,12 +60,18 @@ func (h *Handler) PatchLabel(w http.ResponseWriter, r *http.Request) {
 		label.Color = v
 	}
 
-	h.Store.UpdateLabel(r.Context(), label)
+	if err := h.Store.UpdateLabel(r.Context(), label); err != nil {
+		http.Error(w, "update failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) DeleteLabel(w http.ResponseWriter, r *http.Request) {
 	id := h.urlParam(r, "id")
-	h.Store.DeleteLabel(r.Context(), id)
+	if err := h.Store.DeleteLabel(r.Context(), id); err != nil {
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }

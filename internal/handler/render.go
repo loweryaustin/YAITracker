@@ -354,17 +354,21 @@ func (h *Handler) renderLogin(w http.ResponseWriter, r *http.Request, errorMsg, 
 	pd := h.newPageData(r, "Login", email)
 	pd.Error = errorMsg
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	loginTpl.Execute(w, pd)
+	if err := loginTpl.Execute(w, pd); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
-func (h *Handler) renderRegister(w http.ResponseWriter, r *http.Request, errorMsg string, firstRun bool) {
+func (h *Handler) renderRegister(w http.ResponseWriter, r *http.Request, errorMsg string, _ bool) {
 	pd := h.newPageData(r, "Register", nil)
 	pd.Error = errorMsg
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	registerTpl.Execute(w, pd)
+	if err := registerTpl.Execute(w, pd); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
-func (h *Handler) renderApp(w http.ResponseWriter, r *http.Request, tplName string, tpl *template.Template, pd pageData) {
+func (h *Handler) renderApp(w http.ResponseWriter, _ string, tpl *template.Template, pd pageData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tpl.Execute(w, pd); err != nil {
 		http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)

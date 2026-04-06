@@ -2,6 +2,7 @@ package handler
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"strings"
 
@@ -60,14 +61,15 @@ var newProjectTpl = template.Must(template.New("new-project").Funcs(funcMap).Par
 
 func (h *Handler) GetNewProject(w http.ResponseWriter, r *http.Request) {
 	pd := h.newPageData(r, "New Project", nil)
-	h.renderApp(w, r, "new-project", newProjectTpl, pd)
+	h.renderApp(w, "new-project", newProjectTpl, pd)
 }
 
 func (h *Handler) PostProject(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		pd := h.newPageData(r, "New Project", nil)
 		pd.Error = "Invalid form data"
-		h.renderApp(w, r, "new-project", newProjectTpl, pd)
+		h.renderApp(w, "new-project", newProjectTpl, pd)
 		return
 	}
 
@@ -78,7 +80,7 @@ func (h *Handler) PostProject(w http.ResponseWriter, r *http.Request) {
 	if key == "" || name == "" {
 		pd := h.newPageData(r, "New Project", nil)
 		pd.Error = "Key and name are required"
-		h.renderApp(w, r, "new-project", newProjectTpl, pd)
+		h.renderApp(w, "new-project", newProjectTpl, pd)
 		return
 	}
 
@@ -105,21 +107,22 @@ func (h *Handler) PostProject(w http.ResponseWriter, r *http.Request) {
 	if err := h.Store.CreateProject(r.Context(), p); err != nil {
 		pd := h.newPageData(r, "New Project", nil)
 		pd.Error = "Could not create project: " + err.Error()
-		h.renderApp(w, r, "new-project", newProjectTpl, pd)
+		h.renderApp(w, "new-project", newProjectTpl, pd)
 		return
 	}
 
-	// Add tags
 	if tagsStr := r.FormValue("tags"); tagsStr != "" {
 		for _, tag := range strings.Split(tagsStr, ",") {
 			tag = strings.TrimSpace(strings.ToLower(tag))
 			if tag != "" {
-				h.Store.AddProjectTag(r.Context(), p.ID, tag, "")
+				if err := h.Store.AddProjectTag(r.Context(), p.ID, tag, ""); err != nil {
+					log.Printf("add project tag: %v", err)
+				}
 			}
 		}
 	}
 
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "project", EntityID: p.ID, UserID: user.ID,
 		Action: "created", IPAddress: h.clientIP(r),
 	})
@@ -135,8 +138,14 @@ func (h *Handler) GetProjectSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, _ := h.Store.GetProjectMembers(r.Context(), project.ID)
-	labels, _ := h.Store.ListLabels(r.Context(), project.ID)
+	members, err := h.Store.GetProjectMembers(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("get project members: %v", err)
+	}
+	labels, err := h.Store.ListLabels(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("list labels: %v", err)
+	}
 
 	type settingsData struct {
 		Project *model.Project
@@ -151,10 +160,11 @@ func (h *Handler) GetProjectSettings(w http.ResponseWriter, r *http.Request) {
 	})
 	pd.ProjectKey = key
 	pd.ActiveTab = "settings"
-	h.renderApp(w, r, "project-settings", projectSettingsTpl, pd)
+	h.renderApp(w, "project-settings", projectSettingsTpl, pd)
 }
 
 func (h *Handler) PostProjectSettings(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	project, err := h.Store.GetProjectByKey(r.Context(), key)
 	if err != nil {
@@ -188,10 +198,13 @@ func (h *Handler) PostProjectSettings(w http.ResponseWriter, r *http.Request) {
 		project.BudgetHours = nil
 	}
 
-	h.Store.UpdateProject(r.Context(), project)
+	if err := h.Store.UpdateProject(r.Context(), project); err != nil {
+		http.Error(w, "update failed", http.StatusInternalServerError)
+		return
+	}
 
 	user := h.currentUser(r)
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "project", EntityID: project.ID, UserID: user.ID,
 		Action: "updated_settings", IPAddress: h.clientIP(r),
 	})
@@ -208,7 +221,7 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := h.currentUser(r)
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "project", EntityID: project.ID, UserID: user.ID,
 		Action: "deleted_project", NewValue: project.Name, IPAddress: h.clientIP(r),
 	})

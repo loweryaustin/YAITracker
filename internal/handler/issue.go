@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,12 +113,18 @@ func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 		filter.Type = strings.Split(types, ",")
 	}
 
-	issues, total, _ := h.Store.ListIssues(r.Context(), filter)
+	issues, total, err := h.Store.ListIssues(r.Context(), filter)
+	if err != nil {
+		log.Printf("list issues: %v", err)
+	}
 
-	// Load assignees
 	for i := range issues {
 		if issues[i].AssigneeID != nil {
-			issues[i].Assignee, _ = h.Store.GetUserByID(r.Context(), *issues[i].AssigneeID)
+			u, err := h.Store.GetUserByID(r.Context(), *issues[i].AssigneeID)
+			if err != nil {
+				log.Printf("get user: %v", err)
+			}
+			issues[i].Assignee = u
 		}
 	}
 
@@ -131,7 +138,7 @@ func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 	})
 	pd.ProjectKey = key
 	pd.ActiveTab = "issues"
-	h.renderApp(w, r, "issue-list", issueListTpl, pd)
+	h.renderApp(w, "issue-list", issueListTpl, pd)
 }
 
 type issueDetailData struct {
@@ -386,28 +393,53 @@ func (h *Handler) GetIssueDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if issue.AssigneeID != nil {
-		issue.Assignee, _ = h.Store.GetUserByID(r.Context(), *issue.AssigneeID)
+		assignee, err := h.Store.GetUserByID(r.Context(), *issue.AssigneeID)
+		if err != nil {
+			log.Printf("get assignee: %v", err)
+		}
+		issue.Assignee = assignee
 	}
 
-	comments, _ := h.Store.ListComments(r.Context(), issue.ID)
-	activities, _ := h.Store.ListActivity(r.Context(), "issue", issue.ID, 50, 0)
-	timeEntries, _ := h.Store.ListTimeEntries(r.Context(), issue.ID)
-	totalTime, _ := h.Store.GetIssueTotalTime(r.Context(), issue.ID)
-	children, _ := h.Store.GetChildIssues(r.Context(), issue.ID)
-	labels, _ := h.Store.ListLabels(r.Context(), project.ID)
-	users, _ := h.Store.ListUsers(r.Context())
+	comments, err := h.Store.ListComments(r.Context(), issue.ID)
+	if err != nil {
+		log.Printf("list comments: %v", err)
+	}
+	activities, err := h.Store.ListActivity(r.Context(), "issue", issue.ID, 50, 0)
+	if err != nil {
+		log.Printf("list activity: %v", err)
+	}
+	timeEntries, err := h.Store.ListTimeEntries(r.Context(), issue.ID)
+	if err != nil {
+		log.Printf("list time entries: %v", err)
+	}
+	totalTime, err := h.Store.GetIssueTotalTime(r.Context(), issue.ID)
+	if err != nil {
+		log.Printf("get issue total time: %v", err)
+	}
+	children, err := h.Store.GetChildIssues(r.Context(), issue.ID)
+	if err != nil {
+		log.Printf("get child issues: %v", err)
+	}
+	labels, err := h.Store.ListLabels(r.Context(), project.ID)
+	if err != nil {
+		log.Printf("list labels: %v", err)
+	}
+	users, err := h.Store.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("list users: %v", err)
+	}
 
 	var humanTime, agentTime int64
 	var hasActive bool
-	for _, te := range timeEntries {
-		if te.Duration != nil {
-			if te.ActorType == "agent" {
-				agentTime += *te.Duration
+	for i := range timeEntries {
+		if timeEntries[i].Duration != nil {
+			if timeEntries[i].ActorType == "agent" {
+				agentTime += *timeEntries[i].Duration
 			} else {
-				humanTime += *te.Duration
+				humanTime += *timeEntries[i].Duration
 			}
 		}
-		if te.EndedAt == nil {
+		if timeEntries[i].EndedAt == nil {
 			hasActive = true
 		}
 	}
@@ -428,7 +460,7 @@ func (h *Handler) GetIssueDetail(w http.ResponseWriter, r *http.Request) {
 		HasActive:   hasActive,
 	})
 	pd.ProjectKey = key
-	h.renderApp(w, r, "issue-detail", issueDetailTpl, pd)
+	h.renderApp(w, "issue-detail", issueDetailTpl, pd)
 }
 
 var newIssueTpl = template.Must(template.New("new-issue").Funcs(funcMap).Parse(appLayout + `
@@ -523,10 +555,13 @@ func (h *Handler) GetNewIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, _ := h.Store.ListUsers(r.Context())
+	users, err := h.Store.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("list users: %v", err)
+	}
 	pd := h.newPageData(r, "New Issue", newIssueData{Project: project, Users: users})
 	pd.ProjectKey = key
-	h.renderApp(w, r, "new-issue", newIssueTpl, pd)
+	h.renderApp(w, "new-issue", newIssueTpl, pd)
 }
 
 func (h *Handler) PostIssue(w http.ResponseWriter, r *http.Request) {
@@ -569,22 +604,28 @@ func (h *Handler) PostIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if issue.Title == "" {
-		users, _ := h.Store.ListUsers(r.Context())
+		users, err := h.Store.ListUsers(r.Context())
+		if err != nil {
+			log.Printf("list users: %v", err)
+		}
 		pd := h.newPageData(r, "New Issue", newIssueData{Project: project, Users: users})
 		pd.Error = "Title is required"
-		h.renderApp(w, r, "new-issue", newIssueTpl, pd)
+		h.renderApp(w, "new-issue", newIssueTpl, pd)
 		return
 	}
 
 	if err := h.Store.CreateIssue(r.Context(), issue); err != nil {
-		users, _ := h.Store.ListUsers(r.Context())
+		users, listErr := h.Store.ListUsers(r.Context())
+		if listErr != nil {
+			log.Printf("list users: %v", listErr)
+		}
 		pd := h.newPageData(r, "New Issue", newIssueData{Project: project, Users: users})
 		pd.Error = "Could not create issue: " + err.Error()
-		h.renderApp(w, r, "new-issue", newIssueTpl, pd)
+		h.renderApp(w, "new-issue", newIssueTpl, pd)
 		return
 	}
 
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "issue", EntityID: issue.ID, UserID: user.ID,
 		Action: "created", IPAddress: h.clientIP(r),
 	})
@@ -598,6 +639,7 @@ func (h *Handler) PostIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PatchIssue(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	number := h.urlParamInt(r, "number")
 
@@ -632,7 +674,10 @@ func (h *Handler) PatchIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	if v := r.FormValue("status"); v != "" && v != issue.Status {
 		h.logFieldChange(r, issue.ID, user.ID, "status", issue.Status, v)
-		h.Store.UpdateIssueStatus(r.Context(), issue.ID, v)
+		if err := h.Store.UpdateIssueStatus(r.Context(), issue.ID, v); err != nil {
+			http.Error(w, "update status failed", http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, fmt.Sprintf("/projects/%s/issues/%d", key, number), http.StatusSeeOther)
 		return
 	}
@@ -657,7 +702,10 @@ func (h *Handler) PatchIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if changed {
-		h.Store.UpdateIssue(r.Context(), issue)
+		if err := h.Store.UpdateIssue(r.Context(), issue); err != nil {
+			http.Error(w, "update failed", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/projects/%s/issues/%d", key, number), http.StatusSeeOther)
@@ -680,17 +728,20 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := h.currentUser(r)
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "issue", EntityID: issue.ID, UserID: user.ID,
 		Action: "deleted", NewValue: issue.Title, IPAddress: h.clientIP(r),
 	})
 
-	h.Store.DeleteIssue(r.Context(), issue.ID)
+	if err := h.Store.DeleteIssue(r.Context(), issue.ID); err != nil {
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/projects/"+key+"/issues", http.StatusSeeOther)
 }
 
 func (h *Handler) logFieldChange(r *http.Request, issueID, userID, field, oldVal, newVal string) {
-	h.Store.LogActivity(r.Context(), &model.ActivityLog{
+	h.Store.LogActivity(r.Context(), &model.ActivityLog{ //nolint:errcheck // best-effort audit log
 		EntityType: "issue", EntityID: issueID, UserID: userID,
 		Action: "changed", Field: field, OldValue: oldVal, NewValue: newVal,
 		IPAddress: h.clientIP(r),

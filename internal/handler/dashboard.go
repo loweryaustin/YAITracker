@@ -2,6 +2,7 @@ package handler
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"time"
 
@@ -124,11 +125,26 @@ var dashboardTpl = template.Must(template.New("dashboard").Funcs(funcMap).Parse(
 func (h *Handler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 	user := h.currentUser(r)
 	ctx := r.Context()
-	projects, _ := h.Store.ListProjectSummaries(ctx)
-	activities, _ := h.Store.ListRecentActivity(ctx, 20)
-	dailySummary, _ := h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
-	session, _ := h.Store.GetActiveWorkSession(ctx, user.ID)
-	activeTimers, _ := h.Store.GetActiveTimers(ctx, user.ID)
+	projects, err := h.Store.ListProjectSummaries(ctx)
+	if err != nil {
+		log.Printf("list project summaries: %v", err)
+	}
+	activities, err := h.Store.ListRecentActivity(ctx, 20)
+	if err != nil {
+		log.Printf("list recent activity: %v", err)
+	}
+	dailySummary, err := h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
+	if err != nil {
+		log.Printf("get daily summary: %v", err)
+	}
+	session, err := h.Store.GetActiveWorkSession(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active work session: %v", err)
+	}
+	activeTimers, err := h.Store.GetActiveTimers(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active timers: %v", err)
+	}
 
 	var sessionSecs int64
 	if session != nil {
@@ -144,11 +160,14 @@ func (h *Handler) GetDashboard(w http.ResponseWriter, r *http.Request) {
 		ActiveCount:  len(activeTimers),
 	})
 	pd.ActiveNav = "dashboard"
-	h.renderApp(w, r, "dashboard", dashboardTpl, pd)
+	h.renderApp(w, "dashboard", dashboardTpl, pd)
 }
 
 func (h *Handler) GetProjectNav(w http.ResponseWriter, r *http.Request) {
-	projects, _ := h.Store.ListProjects(r.Context())
+	projects, err := h.Store.ListProjects(r.Context())
+	if err != nil {
+		log.Printf("list projects: %v", err)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	navTpl := template.Must(template.New("nav").Parse(`
@@ -168,5 +187,7 @@ func (h *Handler) GetProjectNav(w http.ResponseWriter, r *http.Request) {
 		</div>
 	</div>
 	{{end}}`))
-	navTpl.Execute(w, projects)
+	if err := navTpl.Execute(w, projects); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }

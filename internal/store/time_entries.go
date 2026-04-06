@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -63,7 +64,7 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 				if err != nil {
 					return fmt.Errorf("auto-stop previous human timer: %w", err)
 				}
-			} else if err != sql.ErrNoRows {
+			} else if !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("check existing human timer: %w", err)
 			}
 		} else {
@@ -73,7 +74,7 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 				mcpActorID, userID,
 			).Scan(&check)
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return fmt.Errorf("mcp actor id is not registered for this user")
 				}
 				return fmt.Errorf("validate mcp actor: %w", err)
@@ -88,7 +89,7 @@ func (s *Store) StartTimer(ctx context.Context, issueID, userID, actorType, sess
 			if err == nil {
 				return fmt.Errorf("active agent timer already running on this issue (id: %s)", existing)
 			}
-			if err != sql.ErrNoRows {
+			if !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("check existing agent timer: %w", err)
 			}
 		}
@@ -128,7 +129,7 @@ func (s *Store) StopTimer(ctx context.Context, userID string) (*model.TimeEntry,
 			 WHERE user_id = ? AND actor_type = 'human' AND ended_at IS NULL`, userID,
 		).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &entry.ActorType, &startedAt)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("no active human timer")
 			}
 			return err
@@ -162,7 +163,7 @@ func (s *Store) StopTimerByID(ctx context.Context, timerID string) (*model.TimeE
 			 WHERE id = ? AND ended_at IS NULL`, timerID,
 		).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &mcp, &startedAt)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("no active timer with id %s", timerID)
 			}
 			return fmt.Errorf("find timer: %w", err)
@@ -199,7 +200,7 @@ func (s *Store) GetActiveTimers(ctx context.Context, userID string) ([]model.Tim
 	if err != nil {
 		return nil, fmt.Errorf("get active timers: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var entries []model.TimeEntry
 	for rows.Next() {
@@ -256,7 +257,7 @@ func (s *Store) GetActiveTimer(ctx context.Context, userID string) (*model.TimeE
 	).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &desc,
 		&entry.StartedAt, &entry.Source, &entry.CreatedAt, &entry.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
@@ -312,7 +313,7 @@ func (s *Store) GetTimeEntry(ctx context.Context, id string) (*model.TimeEntry, 
 	).Scan(&entry.ID, &entry.IssueID, &entry.UserID, &sessionID, &entry.ActorType, &mcp, &desc,
 		&entry.StartedAt, &endedAt, &duration, &entry.Source, &entry.CreatedAt, &entry.UpdatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("time entry not found")
 		}
 		return nil, err
@@ -345,7 +346,7 @@ func (s *Store) ListTimeEntries(ctx context.Context, issueID string) ([]model.Ti
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var entries []model.TimeEntry
 	for rows.Next() {
@@ -448,7 +449,7 @@ func (s *Store) GetActiveTimersWithIssues(ctx context.Context, userID string) ([
 	if err != nil {
 		return nil, fmt.Errorf("get active timers with issues: %w", err)
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var entries []model.TimeEntry
 	for rows.Next() {

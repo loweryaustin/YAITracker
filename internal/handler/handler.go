@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -29,8 +28,8 @@ func (h *Handler) urlParam(r *http.Request, name string) string {
 	return chi.URLParam(r, name)
 }
 
-func (h *Handler) urlParamInt(r *http.Request, name string) int {
-	v, _ := strconv.Atoi(chi.URLParam(r, name))
+func (h *Handler) urlParamInt(r *http.Request, name string) int { //nolint:unparam // generic helper, only "number" currently
+	v, _ := strconv.Atoi(chi.URLParam(r, name)) //nolint:errcheck // returns 0 on invalid input
 	return v
 }
 
@@ -43,7 +42,7 @@ func (h *Handler) queryParamInt(r *http.Request, name, defaultVal string) int {
 	if v == "" {
 		v = defaultVal
 	}
-	n, _ := strconv.Atoi(v)
+	n, _ := strconv.Atoi(v) //nolint:errcheck // returns 0 on invalid input
 	return n
 }
 
@@ -52,15 +51,4 @@ func (h *Handler) clientIP(r *http.Request) string {
 		return ip
 	}
 	return r.RemoteAddr
-}
-
-func (h *Handler) jsonResponse(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func (h *Handler) htmlError(w http.ResponseWriter, msg string, code int) {
-	w.WriteHeader(code)
-	w.Write([]byte(msg))
 }

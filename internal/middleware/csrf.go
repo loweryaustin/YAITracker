@@ -31,7 +31,7 @@ func CSRF(next http.Handler) http.Handler {
 
 		token := r.Header.Get(CSRFHeaderName)
 		if token == "" {
-			token = r.FormValue(CSRFFormField)
+			token = r.FormValue(CSRFFormField) //nolint:gosec // G120: body size limited by BodyLimit middleware in routes //nolint:gosec // body-size limits belong to outer handler; CSRF reads one field
 		}
 
 		if token == "" || token != cookie.Value {

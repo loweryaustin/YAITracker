@@ -15,7 +15,7 @@ func TestCSRF_FirstLoadTokenInForm(t *testing.T) {
 		if tok == "" {
 			t.Fatal("expected non-empty CSRF token on first GET")
 		}
-		w.Write([]byte(tok)) //nolint:errcheck
+		w.Write([]byte(tok)) //nolint:errcheck,gosec // test helper
 	}))
 
 	req := httptest.NewRequest("GET", "/login", nil)
@@ -154,7 +154,7 @@ func TestCSRF_ExistingCookieNotOverwritten(t *testing.T) {
 
 	handler := CSRF(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tok := GetCSRFToken(r)
-		w.Write([]byte(tok)) //nolint:errcheck
+		w.Write([]byte(tok)) //nolint:errcheck,gosec // test helper
 	}))
 
 	req := httptest.NewRequest("GET", "/", nil)

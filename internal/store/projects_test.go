@@ -202,7 +202,7 @@ func TestDeleteProject_nonExistent(t *testing.T) {
 	}
 }
 
-func assertRowCount(t *testing.T, st *store.Store, table, where, arg string, want int) {
+func assertRowCount(t *testing.T, st *store.Store, table, where, arg string, want int) { //nolint:unparam // want is always 0 in this file but the param improves readability //nolint:unparam // want kept for readability in callers
 	t.Helper()
 	var got int
 	err := st.DB().QueryRow("SELECT COUNT(*) FROM "+table+" WHERE "+where, arg).Scan(&got)

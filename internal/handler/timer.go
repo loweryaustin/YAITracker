@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func (h *Handler) PostStartTimer(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Invalid form", http.StatusBadRequest)
 		return
@@ -24,17 +26,20 @@ func (h *Handler) PostStartTimer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := ""
-	ws, _ := h.Store.GetActiveWorkSession(r.Context(), user.ID)
+	var sessionID string
+	ws, err := h.Store.GetActiveWorkSession(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("get active work session: %v", err)
+	}
 	if ws != nil {
 		sessionID = ws.ID
 	} else {
-		ws, err := h.Store.CreateWorkSession(r.Context(), user.ID, "")
+		newWs, err := h.Store.CreateWorkSession(r.Context(), user.ID, "")
 		if err != nil {
 			http.Error(w, "could not create work session", http.StatusInternalServerError)
 			return
 		}
-		sessionID = ws.ID
+		sessionID = newWs.ID
 	}
 
 	if _, err := h.Store.StartTimer(r.Context(), issueID, user.ID, "human", sessionID, "", ""); err != nil {
@@ -78,6 +83,7 @@ func (h *Handler) GetSessionBanner(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PostManualTimeEntry(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	key := h.urlParam(r, "key")
 	number := h.urlParamInt(r, "number")
 
@@ -99,7 +105,11 @@ func (h *Handler) PostManualTimeEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := h.currentUser(r)
-	hours, _ := parseFloat(r.FormValue("hours"))
+	hours, err := parseFloat(r.FormValue("hours"))
+	if err != nil {
+		http.Error(w, "invalid hours", http.StatusBadRequest)
+		return
+	}
 	description := r.FormValue("description")
 
 	durationSecs := int64(hours * 3600)
@@ -115,13 +125,20 @@ func (h *Handler) PostManualTimeEntry(w http.ResponseWriter, r *http.Request) {
 		Duration:    &durationSecs,
 	}
 
-	h.Store.CreateManualTimeEntry(r.Context(), entry)
+	if err := h.Store.CreateManualTimeEntry(r.Context(), entry); err != nil {
+		http.Error(w, "create time entry failed", http.StatusInternalServerError)
+		return
+	}
 
-	entries, _ := h.Store.ListTimeEntries(r.Context(), issue.ID)
+	entries, err := h.Store.ListTimeEntries(r.Context(), issue.ID)
+	if err != nil {
+		log.Printf("list time entries: %v", err)
+	}
 	h.renderTimeEntries(w, entries)
 }
 
 func (h *Handler) PatchTimeEntry(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	id := h.urlParam(r, "id")
 	entry, err := h.Store.GetTimeEntry(r.Context(), id)
 	if err != nil {
@@ -138,18 +155,26 @@ func (h *Handler) PatchTimeEntry(w http.ResponseWriter, r *http.Request) {
 		entry.Description = v
 	}
 	if v := r.FormValue("hours"); v != "" {
-		hours, _ := parseFloat(v)
-		secs := int64(hours * 3600)
-		entry.Duration = &secs
+		hours, err := parseFloat(v)
+		if err == nil {
+			secs := int64(hours * 3600)
+			entry.Duration = &secs
+		}
 	}
 
-	h.Store.UpdateTimeEntry(r.Context(), entry)
+	if err := h.Store.UpdateTimeEntry(r.Context(), entry); err != nil {
+		http.Error(w, "update failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) DeleteTimeEntry(w http.ResponseWriter, r *http.Request) {
 	id := h.urlParam(r, "id")
-	h.Store.DeleteTimeEntry(r.Context(), id)
+	if err := h.Store.DeleteTimeEntry(r.Context(), id); err != nil {
+		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -184,10 +209,22 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 	user := h.currentUser(r)
 	ctx := r.Context()
 
-	activeTimers, _ := h.Store.GetActiveTimersWithIssues(ctx, user.ID)
-	dailySummary, _ := h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
-	session, _ := h.Store.GetActiveWorkSession(ctx, user.ID)
-	sessions, _ := h.Store.ListRecentWorkSessions(ctx, user.ID, 10)
+	activeTimers, err := h.Store.GetActiveTimersWithIssues(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active timers: %v", err)
+	}
+	dailySummary, err := h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
+	if err != nil {
+		log.Printf("get daily summary: %v", err)
+	}
+	session, err := h.Store.GetActiveWorkSession(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active work session: %v", err)
+	}
+	sessions, err := h.Store.ListRecentWorkSessions(ctx, user.ID, 10)
+	if err != nil {
+		log.Printf("list recent work sessions: %v", err)
+	}
 
 	var sessionSecs int64
 	if session != nil {
@@ -197,7 +234,7 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 	weekStr := h.queryParam(r, "week")
 	var weekStart time.Time
 	if weekStr != "" {
-		weekStart, _ = time.Parse("2006-01-02", weekStr)
+		weekStart, _ = time.Parse("2006-01-02", weekStr) //nolint:errcheck // zero-value fallback below
 	}
 	if weekStart.IsZero() {
 		now := time.Now()
@@ -223,7 +260,7 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	tsMap := make(map[string]*timesheetEntry)
 	var dailyTotal [7]int64
@@ -285,7 +322,7 @@ func (h *Handler) GetTimeHub(w http.ResponseWriter, r *http.Request) {
 		DayNames:     [7]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
 	})
 	pd.ActiveNav = "time"
-	h.renderApp(w, r, "time-hub", timeHubTpl, pd)
+	h.renderApp(w, "time-hub", timeHubTpl, pd)
 }
 
 type agentTimerInfo struct {
@@ -371,12 +408,19 @@ func (h *Handler) renderSessionBanner(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	data := sessionBannerData{}
-	data.Session, _ = h.Store.GetActiveWorkSession(ctx, user.ID)
+	var err error
+	data.Session, err = h.Store.GetActiveWorkSession(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active work session: %v", err)
+	}
 	if data.Session != nil {
 		data.SessionSecs = int64(time.Since(data.Session.StartedAt).Seconds())
 	}
 
-	data.HumanTimer, _ = h.Store.GetActiveTimer(ctx, user.ID)
+	data.HumanTimer, err = h.Store.GetActiveTimer(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active timer: %v", err)
+	}
 	if data.HumanTimer != nil {
 		data.HumanSecs = int64(time.Since(data.HumanTimer.StartedAt).Seconds())
 		if issue, err := h.Store.GetIssue(ctx, data.HumanTimer.IssueID); err == nil {
@@ -387,25 +431,33 @@ func (h *Handler) renderSessionBanner(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	allTimers, _ := h.Store.GetActiveTimersWithIssues(ctx, user.ID)
-	for _, t := range allTimers {
-		if t.ActorType == "agent" {
-			secs := int64(time.Since(t.StartedAt).Seconds())
-			info := agentTimerInfo{Secs: secs, McpActorID: t.McpActorID}
-			if t.Issue != nil {
-				info.ProjectKey = t.Issue.ProjectKey
-				info.Number = t.Issue.Number
-				info.Title = t.Issue.Title
+	allTimers, err := h.Store.GetActiveTimersWithIssues(ctx, user.ID)
+	if err != nil {
+		log.Printf("get active timers: %v", err)
+	}
+	for i := range allTimers {
+		if allTimers[i].ActorType == "agent" {
+			secs := int64(time.Since(allTimers[i].StartedAt).Seconds())
+			info := agentTimerInfo{Secs: secs, McpActorID: allTimers[i].McpActorID}
+			if allTimers[i].Issue != nil {
+				info.ProjectKey = allTimers[i].Issue.ProjectKey
+				info.Number = allTimers[i].Issue.Number
+				info.Title = allTimers[i].Issue.Title
 			}
 			data.AgentTimers = append(data.AgentTimers, info)
 			data.AgentSecs += secs
 		}
 	}
 
-	data.DailySummary, _ = h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
+	data.DailySummary, err = h.Store.GetDailySummary(ctx, user.ID, time.Now().UTC())
+	if err != nil {
+		log.Printf("get daily summary: %v", err)
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	sessionBannerTpl.Execute(w, data)
+	if err := sessionBannerTpl.Execute(w, data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handler) renderTimeEntries(w http.ResponseWriter, entries []model.TimeEntry) {
@@ -433,7 +485,9 @@ func (h *Handler) renderTimeEntries(w http.ResponseWriter, entries []model.TimeE
 	{{end}}`))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tpl.Execute(w, entries)
+	if err := tpl.Execute(w, entries); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
 var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(appLayout + `

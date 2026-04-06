@@ -196,7 +196,7 @@ func registerTools(s *server.MCPServer, st *store.Store) {
 }
 
 func toJSON(v interface{}) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
+	b, _ := json.MarshalIndent(v, "", "  ") //nolint:errcheck // marshalling known types
 	return string(b)
 }
 
@@ -216,8 +216,8 @@ func issuesToMCPJSON(ctx context.Context, st *store.Store, projectID string, iss
 		return nil, err
 	}
 	out := make([]map[string]interface{}, 0, len(issues))
-	for _, iss := range issues {
-		raw, err := json.Marshal(iss)
+	for i := range issues {
+		raw, err := json.Marshal(issues[i])
 		if err != nil {
 			return nil, err
 		}
@@ -225,12 +225,12 @@ func issuesToMCPJSON(ctx context.Context, st *store.Store, projectID string, iss
 		if err := json.Unmarshal(raw, &m); err != nil {
 			return nil, err
 		}
-		if iss.ParentID != nil {
-			if n, ok := idToNum[*iss.ParentID]; ok {
+		if issues[i].ParentID != nil {
+			if n, ok := idToNum[*issues[i].ParentID]; ok {
 				m["parent_number"] = n
 			}
 		}
-		if kids := parentToKids[iss.ID]; len(kids) > 0 {
+		if kids := parentToKids[issues[i].ID]; len(kids) > 0 {
 			m["child_numbers"] = kids
 		}
 		out = append(out, m)
@@ -268,7 +268,7 @@ func toolCreateProject(st *store.Store) server.ToolHandlerFunc {
 		key := strings.ToUpper(mcp.ParseString(req, "key", ""))
 		name := mcp.ParseString(req, "name", "")
 
-		creatorID, err := userFromCtx(ctx, st)
+		creatorID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -289,7 +289,9 @@ func toolCreateProject(st *store.Store) server.ToolHandlerFunc {
 			for _, t := range strings.Split(tags, ",") {
 				t = strings.TrimSpace(strings.ToLower(t))
 				if t != "" {
-					st.AddProjectTag(ctx, p.ID, t, "")
+					if err := st.AddProjectTag(ctx, p.ID, t, ""); err != nil {
+						return errResult(fmt.Errorf("add project tag: %w", err)), nil
+					}
 				}
 			}
 		}
@@ -309,7 +311,7 @@ func toolDeleteProject(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		if err := st.DeleteProject(ctx, p.ID); err != nil {
@@ -332,11 +334,11 @@ func toolDeleteIssue(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		if err := st.DeleteIssue(ctx, issue.ID); err != nil {
@@ -356,22 +358,29 @@ func toolTagProject(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		if action == "remove" {
-			st.RemoveProjectTag(ctx, p.ID, tag)
+			if err := st.RemoveProjectTag(ctx, p.ID, tag); err != nil {
+				return errResult(fmt.Errorf("remove project tag: %w", err)), nil
+			}
 			return textResult(fmt.Sprintf("Removed tag '%s' from %s", tag, key)), nil
 		}
 
-		st.AddProjectTag(ctx, p.ID, tag, group)
+		if err := st.AddProjectTag(ctx, p.ID, tag, group); err != nil {
+			return errResult(fmt.Errorf("add project tag: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Added tag '%s' to %s", tag, key)), nil
 	}
 }
 
 func toolListTags(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		tags, _ := st.ListAllTags(ctx)
+		tags, err := st.ListAllTags(ctx)
+		if err != nil {
+			return errResult(fmt.Errorf("list tags: %w", err)), nil
+		}
 		return textResult(toJSON(tags)), nil
 	}
 }
@@ -381,7 +390,7 @@ func toolListIssues(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		filter := model.IssueFilter{
@@ -396,7 +405,10 @@ func toolListIssues(st *store.Store) server.ToolHandlerFunc {
 			filter.Type = strings.Split(t, ",")
 		}
 
-		issues, total, _ := st.ListIssues(ctx, filter)
+		issues, total, err := st.ListIssues(ctx, filter)
+		if err != nil {
+			return errResult(fmt.Errorf("list issues: %w", err)), nil
+		}
 
 		if mcp.ParseString(req, "format", "") == "json" {
 			enriched, err := issuesToMCPJSON(ctx, st, p.ID, issues)
@@ -407,13 +419,13 @@ func toolListIssues(st *store.Store) server.ToolHandlerFunc {
 		}
 
 		var lines []string
-		for _, i := range issues {
+		for i := range issues {
 			pts := ""
-			if i.StoryPoints != nil {
-				pts = fmt.Sprintf(", %dpts", *i.StoryPoints)
+			if issues[i].StoryPoints != nil {
+				pts = fmt.Sprintf(", %dpts", *issues[i].StoryPoints)
 			}
 			lines = append(lines, fmt.Sprintf("%s-%d [%s, %s%s] %s",
-				key, i.Number, i.Status, i.Priority, pts, i.Title))
+				key, issues[i].Number, issues[i].Status, issues[i].Priority, pts, issues[i].Title))
 		}
 		return textResult(fmt.Sprintf("%d issues (showing %d):\n%s", total, len(lines), strings.Join(lines, "\n"))), nil
 	}
@@ -426,18 +438,30 @@ func toolGetIssue(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
-		comments, _ := st.ListComments(ctx, issue.ID)
-		timeEntries, _ := st.ListTimeEntries(ctx, issue.ID)
-		totalTime, _ := st.GetIssueTotalTime(ctx, issue.ID)
-		children, _ := st.GetChildIssues(ctx, issue.ID)
+		comments, err := st.ListComments(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("list comments: %w", err)), nil
+		}
+		timeEntries, err := st.ListTimeEntries(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("list time entries: %w", err)), nil
+		}
+		totalTime, err := st.GetIssueTotalTime(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("get issue total time: %w", err)), nil
+		}
+		children, err := st.GetChildIssues(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("get child issues: %w", err)), nil
+		}
 
 		childNums := make([]int, len(children))
 		for i := range children {
@@ -472,10 +496,10 @@ func toolCreateIssue(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
-		reporterID, err := userFromCtx(ctx, st)
+		reporterID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -525,11 +549,11 @@ func toolUpdateIssue(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		if v := mcp.ParseString(req, "title", ""); v != "" {
@@ -560,7 +584,7 @@ func toolUpdateIssue(st *store.Store) server.ToolHandlerFunc {
 		} else if parentNumber > 0 {
 			parent, err := st.GetIssueByNumber(ctx, p.ID, parentNumber)
 			if err != nil {
-				return errResult(fmt.Errorf("parent issue #%d not found in project", parentNumber)), nil
+				return errResult(fmt.Errorf("parent issue #%d not found in project", parentNumber)), nil //nolint:nilerr // error conveyed via errResult
 			}
 			if parent.ID == issue.ID {
 				return errResult(fmt.Errorf("issue cannot be its own parent")), nil
@@ -591,15 +615,17 @@ func toolMoveIssue(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		oldStatus := issue.Status
-		st.UpdateIssueStatus(ctx, issue.ID, status)
+		if err := st.UpdateIssueStatus(ctx, issue.ID, status); err != nil {
+			return errResult(fmt.Errorf("update issue status: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Moved %s-%d from %s to %s", key, number, oldStatus, status)), nil
 	}
 }
@@ -612,14 +638,14 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
-		userID, err := userFromCtx(ctx, st)
+		userID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -629,7 +655,9 @@ func toolAddComment(st *store.Store) server.ToolHandlerFunc {
 			AuthorID: userID,
 			Body:     body,
 		}
-		st.CreateComment(ctx, c)
+		if err := st.CreateComment(ctx, c); err != nil {
+			return errResult(fmt.Errorf("create comment: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Added comment to %s-%d", key, number)), nil
 	}
 }
@@ -669,11 +697,11 @@ func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
 		color := strings.TrimSpace(mcp.ParseString(req, "color", ""))
@@ -696,56 +724,24 @@ func toolAddIssueLabel(st *store.Store) server.ToolHandlerFunc {
 func toolSearchIssues(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		query := mcp.ParseString(req, "query", "")
-		issues, total, _ := st.ListIssues(ctx, model.IssueFilter{
+		issues, total, err := st.ListIssues(ctx, model.IssueFilter{
 			Query: query,
 			Limit: 50,
 		})
+		if err != nil {
+			return errResult(fmt.Errorf("search issues: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Found %d issues:\n%s", total, toJSON(issues))), nil
 	}
 }
 
 // userFromCtx returns the authenticated user's ID from context (set by bearer
 // token auth for HTTP MCP, or by the Sidecar proxy for stdio clients).
-func userFromCtx(ctx context.Context, st *store.Store) (string, error) {
+func userFromCtx(ctx context.Context) (string, error) {
 	if u := auth.UserFromContext(ctx); u != nil {
 		return u.ID, nil
 	}
 	return "", fmt.Errorf("authenticate with Authorization: Bearer <access_token> from POST /api/v1/auth/token")
-}
-
-func toolStartSession(st *store.Store) server.ToolHandlerFunc {
-	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		desc := mcp.ParseString(req, "description", "")
-
-		userID, err := userFromCtx(ctx, st)
-		if err != nil {
-			return errResult(err), nil
-		}
-
-		ws, err := st.CreateWorkSession(ctx, userID, desc)
-		if err != nil {
-			return errResult(fmt.Errorf("start session: %w", err)), nil
-		}
-
-		return textResult(fmt.Sprintf("Work session started (id: %s) at %s", ws.ID, ws.StartedAt.Format(time.RFC3339))), nil
-	}
-}
-
-func toolEndSession(st *store.Store) server.ToolHandlerFunc {
-	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		userID, err := userFromCtx(ctx, st)
-		if err != nil {
-			return errResult(err), nil
-		}
-
-		ws, err := st.EndWorkSession(ctx, userID)
-		if err != nil {
-			return errResult(fmt.Errorf("end session: %w", err)), nil
-		}
-
-		durationMin := float64(*ws.Duration) / 60
-		return textResult(fmt.Sprintf("Work session ended. Duration: %.1f minutes", durationMin)), nil
-	}
 }
 
 func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
@@ -754,7 +750,7 @@ func toolStartTimer(st *store.Store) server.ToolHandlerFunc {
 		number := mcp.ParseInt(req, "number", 0)
 		desc := mcp.ParseString(req, "description", "")
 
-		userID, err := userFromCtx(ctx, st)
+		userID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -808,14 +804,14 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 		if key != "" && number > 0 {
 			p, err := st.GetProjectByKey(ctx, key)
 			if err != nil {
-				return errResult(fmt.Errorf("project %s not found", key)), nil
+				return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 			}
 			issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 			if err != nil {
-				return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+				return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 			}
 
-			userID, err := userFromCtx(ctx, st)
+			userID, err := userFromCtx(ctx)
 			if err != nil {
 				return errResult(err), nil
 			}
@@ -825,22 +821,22 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 				return errResult(fmt.Errorf("get active timers: %w", err)), nil
 			}
 			actorCtx := auth.MCPActorIDFromContext(ctx)
-			for _, t := range timers {
-				if t.IssueID != issue.ID {
+			for i := range timers {
+				if timers[i].IssueID != issue.ID {
 					continue
 				}
-				if actorFilter != "" && t.ActorType != actorFilter {
+				if actorFilter != "" && timers[i].ActorType != actorFilter {
 					continue
 				}
-				if t.ActorType == "agent" {
+				if timers[i].ActorType == "agent" {
 					if err := auth.AgentMCPAuthError(ctx); err != nil {
 						return errResult(err), nil
 					}
-					if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+					if !auth.MCPActorIDsEqual(timers[i].McpActorID, actorCtx) {
 						continue
 					}
 				}
-				entry, err := st.StopTimerByID(ctx, t.ID)
+				entry, err := st.StopTimerByID(ctx, timers[i].ID)
 				if err != nil {
 					return errResult(fmt.Errorf("stop timer: %w", err)), nil
 				}
@@ -856,47 +852,53 @@ func toolStopTimer(st *store.Store) server.ToolHandlerFunc {
 
 func toolGetSessionStatus(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		userID, err := userFromCtx(ctx, st)
+		userID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
 
 		var result strings.Builder
 
-		ws, _ := st.GetActiveWorkSession(ctx, userID)
+		ws, err := st.GetActiveWorkSession(ctx, userID)
+		if err != nil {
+			return errResult(fmt.Errorf("get active work session: %w", err)), nil
+		}
 		if ws != nil {
 			elapsed := time.Since(ws.StartedAt)
-			result.WriteString(fmt.Sprintf("Work session active: %s (elapsed: %.1f min)\n",
-				ws.Description, elapsed.Minutes()))
+			fmt.Fprintf(&result, "Work session active: %s (elapsed: %.1f min)\n",
+				ws.Description, elapsed.Minutes())
 		} else {
 			result.WriteString("No active work session.\n")
 		}
 
-		timers, _ := st.GetActiveTimers(ctx, userID)
+		timers, err := st.GetActiveTimers(ctx, userID)
+		if err != nil {
+			return errResult(fmt.Errorf("get active timers: %w", err)), nil
+		}
 		if len(timers) == 0 {
 			result.WriteString("No active timers.\n")
 		} else {
-			result.WriteString(fmt.Sprintf("\nActive timers (%d):\n", len(timers)))
+			fmt.Fprintf(&result, "\nActive timers (%d):\n", len(timers))
 			var totalTimerSecs float64
-			for _, t := range timers {
-				elapsed := time.Since(t.StartedAt)
+			for i := range timers {
+				elapsed := time.Since(timers[i].StartedAt)
 				totalTimerSecs += elapsed.Seconds()
-				issueRef := t.IssueID
-				if issue, err := st.GetIssue(ctx, t.IssueID); err == nil {
+				issueRef := timers[i].IssueID
+				if issue, err := st.GetIssue(ctx, timers[i].IssueID); err == nil {
 					if p, err := st.GetProjectByID(ctx, issue.ProjectID); err == nil {
 						issueRef = fmt.Sprintf("%s-%d", p.Key, issue.Number)
 					}
 				}
-				result.WriteString(fmt.Sprintf("  - %s [%s] timer_id:%s elapsed:%.1fmin\n",
-					issueRef, t.ActorType, t.ID, elapsed.Minutes()))
+				fmt.Fprintf(&result, "  - %s [%s] timer_id:%s elapsed:%.1fmin\n",
+					issueRef, timers[i].ActorType, timers[i].ID, elapsed.Minutes())
 			}
 
 			if ws != nil {
 				sessionSecs := time.Since(ws.StartedAt).Seconds()
 				if sessionSecs > 0 {
 					utilization := (totalTimerSecs / sessionSecs) * 100
-					result.WriteString(fmt.Sprintf("\nUtilization: %.0f%% (%.1fmin focused / %.1fmin session)\n",
-						utilization, totalTimerSecs/60, sessionSecs/60))
+					fmt.Fprintf(&result, "\nUtilization: %.0f%% (%.1fmin focused / %.1fmin session)\n",
+						utilization, totalTimerSecs/60, sessionSecs/60)
 				}
 			}
 		}
@@ -912,15 +914,21 @@ func toolGetTimeEntries(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
-		entries, _ := st.ListTimeEntries(ctx, issue.ID)
-		total, _ := st.GetIssueTotalTime(ctx, issue.ID)
+		entries, err := st.ListTimeEntries(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("list time entries: %w", err)), nil
+		}
+		total, err := st.GetIssueTotalTime(ctx, issue.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("get issue total time: %w", err)), nil
+		}
 		return textResult(fmt.Sprintf("Time entries (total: %dh %dm):\n%s",
 			total/3600, (total%3600)/60, toJSON(entries))), nil
 	}
@@ -933,9 +941,12 @@ func toolGetVelocity(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
-		velocity, _ := st.GetVelocity(ctx, p.ID, weeks)
+		velocity, err := st.GetVelocity(ctx, p.ID, weeks)
+		if err != nil {
+			return errResult(fmt.Errorf("get velocity: %w", err)), nil
+		}
 		return textResult(toJSON(velocity)), nil
 	}
 }
@@ -945,9 +956,12 @@ func toolGetEstimationAccuracy(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
-		report, _ := st.GetEstimationReport(ctx, p.ID)
+		report, err := st.GetEstimationReport(ctx, p.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("get estimation report: %w", err)), nil
+		}
 		return textResult(toJSON(report)), nil
 	}
 }
@@ -957,9 +971,12 @@ func toolGetProjectHealth(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
-		health, _ := st.GetProjectHealth(ctx, p.ID)
+		health, err := st.GetProjectHealth(ctx, p.ID)
+		if err != nil {
+			return errResult(fmt.Errorf("get project health: %w", err)), nil
+		}
 		return textResult(toJSON(health)), nil
 	}
 }
@@ -967,7 +984,10 @@ func toolGetProjectHealth(st *store.Store) server.ToolHandlerFunc {
 func toolCompareByTag(st *store.Store) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		groupBy := mcp.ParseString(req, "group_by", "")
-		comparisons, _ := st.CompareByTag(ctx, groupBy)
+		comparisons, err := st.CompareByTag(ctx, groupBy)
+		if err != nil {
+			return errResult(fmt.Errorf("compare by tag: %w", err)), nil
+		}
 		return textResult(toJSON(comparisons)), nil
 	}
 }
@@ -1000,7 +1020,7 @@ func toolBeginWork(st *store.Store) server.ToolHandlerFunc {
 		key := mcp.ParseString(req, "project_key", "")
 		number := mcp.ParseInt(req, "number", 0)
 
-		userID, err := userFromCtx(ctx, st)
+		userID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -1023,14 +1043,14 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 
 		p, err := st.GetProjectByKey(ctx, key)
 		if err != nil {
-			return errResult(fmt.Errorf("project %s not found", key)), nil
+			return errResult(fmt.Errorf("project %s not found", key)), nil //nolint:nilerr // error conveyed via errResult
 		}
 		issue, err := st.GetIssueByNumber(ctx, p.ID, number)
 		if err != nil {
-			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil
+			return errResult(fmt.Errorf("issue %s-%d not found", key, number)), nil //nolint:nilerr // error conveyed via errResult
 		}
 
-		userID, err := userFromCtx(ctx, st)
+		userID, err := userFromCtx(ctx)
 		if err != nil {
 			return errResult(err), nil
 		}
@@ -1054,15 +1074,18 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 		// Stop this MCP actor's agent timer(s) on this issue (same matching rules as activeAgentTimerOnIssue).
 		var durationSec int64
 		actorCtx := auth.MCPActorIDFromContext(ctx)
-		timers, _ := st.GetActiveTimers(ctx, userID)
-		for _, t := range timers {
-			if t.IssueID != issue.ID || t.ActorType != "agent" {
+		timers, err := st.GetActiveTimers(ctx, userID)
+		if err != nil {
+			return errResult(fmt.Errorf("get active timers: %w", err)), nil
+		}
+		for i := range timers {
+			if timers[i].IssueID != issue.ID || timers[i].ActorType != "agent" {
 				continue
 			}
-			if !auth.MCPActorIDsEqual(t.McpActorID, actorCtx) {
+			if !auth.MCPActorIDsEqual(timers[i].McpActorID, actorCtx) {
 				continue
 			}
-			stopped, err := st.StopTimerByID(ctx, t.ID)
+			stopped, err := st.StopTimerByID(ctx, timers[i].ID)
 			if err == nil && stopped.Duration != nil {
 				durationSec += *stopped.Duration
 			}
@@ -1075,7 +1098,9 @@ func toolCompleteWork(st *store.Store) server.ToolHandlerFunc {
 				AuthorID: userID,
 				Body:     summary,
 			}
-			st.CreateComment(ctx, c)
+			if err := st.CreateComment(ctx, c); err != nil {
+				return errResult(fmt.Errorf("create comment: %w", err)), nil
+			}
 		}
 
 		// Move issue to done.

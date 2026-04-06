@@ -52,7 +52,7 @@ func (s *Store) ListActivity(ctx context.Context, entityType, entityID string, l
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var activities []model.ActivityLog
 	for rows.Next() {
@@ -107,7 +107,7 @@ func (s *Store) ListProjectActivity(ctx context.Context, projectID string, limit
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck // best-effort cleanup
 
 	var activities []model.ActivityLog
 	for rows.Next() {
