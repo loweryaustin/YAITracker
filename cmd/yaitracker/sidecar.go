@@ -30,7 +30,11 @@ command via stdio transport.
 
 Required environment variables:
   YAITRACKER_URL                  Central server URL (e.g. http://localhost:8080)
-  YAITRACKER_OAUTH_ACCESS_TOKEN   OAuth bearer token for the human user`,
+  YAITRACKER_OAUTH_ACCESS_TOKEN   OAuth bearer token for the human user
+
+Optional environment variables:
+  YAITRACKER_OAUTH_REFRESH_TOKEN  Refresh token for automatic renewal (recommended)
+  YAITRACKER_REPO_ROOT            Workspace root (auto-detected if omitted)`,
 	RunE: runSidecar,
 }
 
@@ -40,10 +44,13 @@ func init() {
 
 type sidecarState struct {
 	serverURL    string
-	token        string
 	httpClient   *http.Client
 	mcpSession   string
 	mcpSessionMu sync.Mutex
+
+	tokenMu      sync.RWMutex
+	accessToken  string
+	refreshToken string
 
 	mu             sync.Mutex
 	processActorID string
@@ -79,6 +86,54 @@ func (s *sidecarState) currentActorID() string {
 	s.mu.Unlock()
 	log.Printf("sidecar: registered actor for conversation %s", convID[:8])
 	return id
+}
+
+func (s *sidecarState) currentToken() string {
+	s.tokenMu.RLock()
+	defer s.tokenMu.RUnlock()
+	return s.accessToken
+}
+
+func (s *sidecarState) tryRefreshToken() error {
+	s.tokenMu.Lock()
+	defer s.tokenMu.Unlock()
+
+	if s.refreshToken == "" {
+		return fmt.Errorf("no refresh token configured")
+	}
+
+	body, err := json.Marshal(map[string]string{"refresh_token": s.refreshToken})
+	if err != nil {
+		return fmt.Errorf("marshal refresh request: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, s.serverURL+"/api/v1/auth/refresh", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("POST /api/v1/auth/refresh: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // best-effort close
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body) //nolint:errcheck // best-effort read
+		return fmt.Errorf("refresh failed (status %d): %s", resp.StatusCode, respBody)
+	}
+
+	var result struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode refresh response: %w", err)
+	}
+	s.accessToken = result.AccessToken
+	s.refreshToken = result.RefreshToken
+	log.Printf("sidecar: token refreshed successfully")
+	return nil
 }
 
 func (s *sidecarState) readConversationID() string {
@@ -133,10 +188,11 @@ func runSidecar(_ *cobra.Command, _ []string) error {
 	if serverURL == "" {
 		return fmt.Errorf("YAITRACKER_URL is required (e.g. http://localhost:8080)")
 	}
-	token := strings.TrimSpace(os.Getenv("YAITRACKER_OAUTH_ACCESS_TOKEN"))
-	if token == "" {
+	accessToken := strings.TrimSpace(os.Getenv("YAITRACKER_OAUTH_ACCESS_TOKEN"))
+	if accessToken == "" {
 		return fmt.Errorf("YAITRACKER_OAUTH_ACCESS_TOKEN is required")
 	}
+	refreshToken := strings.TrimSpace(os.Getenv("YAITRACKER_OAUTH_REFRESH_TOKEN"))
 
 	workspaceRoot := os.Getenv("YAITRACKER_REPO_ROOT")
 	if workspaceRoot == "" {
@@ -148,8 +204,9 @@ func runSidecar(_ *cobra.Command, _ []string) error {
 	log.Printf("sidecar: workspace root = %s", workspaceRoot) //nolint:gosec // not user-controlled network input
 
 	state := &sidecarState{
-		serverURL: serverURL,
-		token:     token,
+		serverURL:    serverURL,
+		accessToken:  accessToken,
+		refreshToken: refreshToken,
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
@@ -199,7 +256,7 @@ func (s *sidecarState) registerActor(label string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
+	req.Header.Set("Authorization", "Bearer "+s.currentToken())
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
@@ -246,7 +303,7 @@ func (s *sidecarState) sendHeartbeat(actorID string) {
 	if err != nil {
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
+	req.Header.Set("Authorization", "Bearer "+s.currentToken())
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		log.Printf("sidecar: heartbeat failed for %s: %v", actorID, err)
@@ -298,12 +355,31 @@ func (s *sidecarState) proxyLoop(ctx context.Context) error {
 }
 
 func (s *sidecarState) forwardRequest(jsonRPC []byte) ([]byte, error) {
-	actorID := s.currentActorID()
-	req, err := http.NewRequest(http.MethodPost, s.serverURL+"/mcp", bytes.NewReader(jsonRPC))
+	body, statusCode, err := s.doForward(jsonRPC)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
+
+	if statusCode == http.StatusUnauthorized && s.refreshToken != "" {
+		if refreshErr := s.tryRefreshToken(); refreshErr != nil {
+			log.Printf("sidecar: auto-refresh failed: %v", refreshErr)
+			return body, nil
+		}
+		body, _, err = s.doForward(jsonRPC)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return body, nil
+}
+
+func (s *sidecarState) doForward(jsonRPC []byte) ([]byte, int, error) {
+	actorID := s.currentActorID()
+	req, err := http.NewRequest(http.MethodPost, s.serverURL+"/mcp", bytes.NewReader(jsonRPC))
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.currentToken())
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	if actorID != "" {
@@ -318,7 +394,7 @@ func (s *sidecarState) forwardRequest(jsonRPC []byte) ([]byte, error) {
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("proxy to %s/mcp: %w", s.serverURL, err)
+		return nil, 0, fmt.Errorf("proxy to %s/mcp: %w", s.serverURL, err)
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort close
 
@@ -330,14 +406,15 @@ func (s *sidecarState) forwardRequest(jsonRPC []byte) ([]byte, error) {
 
 	ct := resp.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "text/event-stream") {
-		return s.readSSE(resp.Body)
+		body, err := s.readSSE(resp.Body)
+		return body, resp.StatusCode, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
 	}
-	return bytes.TrimSpace(body), nil
+	return bytes.TrimSpace(body), resp.StatusCode, nil
 }
 
 // readSSE reads an SSE stream and returns the last "data:" event payload.
@@ -368,7 +445,7 @@ func (s *sidecarState) revokeActor(actorID string) {
 	if err != nil {
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+s.token)
+	req.Header.Set("Authorization", "Bearer "+s.currentToken())
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		log.Printf("sidecar: failed to revoke actor %s: %v", actorID, err)
