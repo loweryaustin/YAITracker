@@ -11,9 +11,15 @@ import (
 	"yaitracker.com/loweryaustin/internal/model"
 )
 
+type issueNode struct {
+	Issue    model.Issue
+	Children []model.Issue
+}
+
 type issueListData struct {
 	Project *model.Project
 	Issues  []model.Issue
+	Nodes   []issueNode
 	Total   int
 	Filter  model.IssueFilter
 	Page    int
@@ -54,17 +60,33 @@ var issueListTpl = template.Must(template.New("issue-list").Funcs(funcMap).Parse
             </tr>
         </thead>
         <tbody id="issue-table-body">
-            {{range .Content.Issues}}
-            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="window.location='/projects/{{$p.Key}}/issues/{{.Number}}'">
-                <td class="px-4 py-2 font-mono text-xs text-slate-500">{{$p.Key}}-{{.Number}}</td>
-                <td class="px-4 py-2">{{.Title}}</td>
+            {{range .Content.Nodes}}
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-4 py-2 font-mono text-xs"><a href="/projects/{{$p.Key}}/issues/{{.Issue.Number}}" class="text-slate-500 hover:text-blue-600">{{$p.Key}}-{{.Issue.Number}}</a></td>
+                <td class="px-4 py-2">
+                    <a href="/projects/{{$p.Key}}/issues/{{.Issue.Number}}" class="text-slate-800 hover:text-blue-600 font-medium">{{.Issue.Title}}</a>
+                    {{if .Children}}<span class="ml-1 text-xs text-slate-400">({{len .Children}} sub)</span>{{end}}
+                </td>
+                <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-medium {{statusColor .Issue.Status}}">{{.Issue.Status}}</span></td>
+                <td class="px-4 py-2"><span class="text-xs {{priorityColor .Issue.Priority}}">{{.Issue.Priority}}</span></td>
+                <td class="px-4 py-2 text-xs text-slate-500">{{if .Issue.Assignee}}{{.Issue.Assignee.Name}}{{else}}-{{end}}</td>
+                <td class="px-4 py-2 text-xs">{{if .Issue.StoryPoints}}{{deref .Issue.StoryPoints}}{{else}}-{{end}}</td>
+            </tr>
+            {{range .Children}}
+            <tr class="border-b border-slate-100 hover:bg-slate-50 bg-slate-50/50">
+                <td class="px-4 py-2 font-mono text-xs pl-8"><a href="/projects/{{$p.Key}}/issues/{{.Number}}" class="text-slate-400 hover:text-blue-600">{{$p.Key}}-{{.Number}}</a></td>
+                <td class="px-4 py-2 pl-8">
+                    <span class="text-slate-300 mr-1">&lfloor;</span>
+                    <a href="/projects/{{$p.Key}}/issues/{{.Number}}" class="text-slate-800 hover:text-blue-600">{{.Title}}</a>
+                </td>
                 <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-medium {{statusColor .Status}}">{{.Status}}</span></td>
                 <td class="px-4 py-2"><span class="text-xs {{priorityColor .Priority}}">{{.Priority}}</span></td>
                 <td class="px-4 py-2 text-xs text-slate-500">{{if .Assignee}}{{.Assignee.Name}}{{else}}-{{end}}</td>
                 <td class="px-4 py-2 text-xs">{{if .StoryPoints}}{{deref .StoryPoints}}{{else}}-{{end}}</td>
             </tr>
             {{end}}
-            {{if not .Content.Issues}}
+            {{end}}
+            {{if not .Content.Nodes}}
             <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">No issues match your filters.</td></tr>
             {{end}}
         </tbody>
@@ -128,9 +150,12 @@ func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	nodes := buildIssueTree(issues)
+
 	pd := h.newPageData(r, project.Name+" - Issues", issueListData{
 		Project: project,
 		Issues:  issues,
+		Nodes:   nodes,
 		Total:   total,
 		Filter:  filter,
 		Page:    page,
@@ -139,6 +164,30 @@ func (h *Handler) GetIssueList(w http.ResponseWriter, r *http.Request) {
 	pd.ProjectKey = key
 	pd.ActiveTab = "issues"
 	h.renderApp(w, "issue-list", issueListTpl, pd)
+}
+
+func buildIssueTree(issues []model.Issue) []issueNode {
+	childrenOf := make(map[string][]model.Issue)
+	hasParent := make(map[string]bool)
+
+	for _, iss := range issues {
+		if iss.ParentID != nil && *iss.ParentID != "" {
+			childrenOf[*iss.ParentID] = append(childrenOf[*iss.ParentID], iss)
+			hasParent[iss.ID] = true
+		}
+	}
+
+	nodes := make([]issueNode, 0, len(issues))
+	for _, iss := range issues {
+		if hasParent[iss.ID] {
+			continue
+		}
+		nodes = append(nodes, issueNode{
+			Issue:    iss,
+			Children: childrenOf[iss.ID],
+		})
+	}
+	return nodes
 }
 
 type issueDetailData struct {
