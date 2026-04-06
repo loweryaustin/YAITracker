@@ -178,7 +178,7 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
                 <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wide">Description</h2>
             </div>
             <div class="prose prose-sm max-w-none">
-                {{if $i.Description}}{{$i.Description}}{{else}}<span class="text-slate-400">No description.</span>{{end}}
+                {{if $i.Description}}{{$i.Description | markdown}}{{else}}<span class="text-slate-400">No description.</span>{{end}}
             </div>
         </div>
 
@@ -261,7 +261,7 @@ var issueDetailTpl = template.Must(template.New("issue-detail").Funcs(funcMap).P
                             <span class="font-medium text-sm">{{if .Author}}{{.Author.Name}}{{end}}</span>
                             <span class="text-xs text-slate-400">{{timeAgo .CreatedAt}}</span>
                         </div>
-                        <div class="text-sm text-slate-700">{{.Body}}</div>
+                        <div class="text-sm text-slate-700 prose prose-sm max-w-none">{{.Body | markdown}}</div>
                     </div>
                 </div>
                 {{end}}

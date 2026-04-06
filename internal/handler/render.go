@@ -1,17 +1,28 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/yuin/goldmark"
 	"yaitracker.com/loweryaustin/internal/middleware"
 	"yaitracker.com/loweryaustin/internal/model"
 )
 
+var mdRenderer = goldmark.New()
+
 var funcMap = template.FuncMap{
+	"markdown": func(src string) template.HTML {
+		var buf bytes.Buffer
+		if err := mdRenderer.Convert([]byte(src), &buf); err != nil {
+			return template.HTML(template.HTMLEscapeString(src)) //nolint:gosec // fallback to escaped text
+		}
+		return template.HTML(buf.String()) //nolint:gosec // goldmark output is safe
+	},
 	"formatDuration": FormatDuration,
 	"timeAgo":        TimeAgo,
 	"elapsed":        func(t time.Time) int64 { return int64(time.Since(t).Seconds()) },
