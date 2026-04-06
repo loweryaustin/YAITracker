@@ -21,7 +21,7 @@ func (a *API) ListIssues(w http.ResponseWriter, r *http.Request) {
 		Query:     a.queryParam(r, "q"),
 		SortBy:    a.queryParam(r, "sort"),
 		SortDir:   a.queryParam(r, "dir"),
-		Limit:     a.queryParamInt(r, "limit", 25),
+		Limit:     min(a.queryParamInt(r, "limit", 25), 100),
 		Offset:    a.queryParamInt(r, "offset", 0),
 	}
 

@@ -157,8 +157,10 @@ func (s *Store) ListIssues(ctx context.Context, filter model.IssueFilter) ([]mod
 	}
 
 	limit := filter.Limit
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 25
+	} else if limit > 10000 {
+		limit = 10000
 	}
 	offset := filter.Offset
 	if offset < 0 {
