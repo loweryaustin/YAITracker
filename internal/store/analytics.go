@@ -184,18 +184,32 @@ func (s *Store) GetProjectHealth(ctx context.Context, projectID string) (*model.
 		health.BudgetTotal = *p.BudgetHours
 	}
 
-	// Velocity trend
+	// Velocity trend -- exclude the current partial week so we only compare
+	// completed weeks. Without this, Monday morning always shows "down".
 	velocity, _ := s.GetVelocity(ctx, projectID, 8) //nolint:errcheck // velocity is optional for health
-	if velocity != nil && len(velocity.Points) >= 2 {
+	if velocity != nil {
 		health.AvgVelocity = velocity.AvgPoints
-		recent := velocity.Points[len(velocity.Points)-1].Points
-		prev := velocity.Points[len(velocity.Points)-2].Points
-		switch {
-		case recent > prev:
-			health.VelocityTrend = "up"
-		case recent < prev:
-			health.VelocityTrend = "down"
-		default:
+		completed := velocity.Points
+		now := time.Now().UTC()
+		if len(completed) > 0 {
+			last := completed[len(completed)-1]
+			weekEnd := last.WeekStart.AddDate(0, 0, 7)
+			if now.Before(weekEnd) {
+				completed = completed[:len(completed)-1]
+			}
+		}
+		if len(completed) >= 2 {
+			recent := completed[len(completed)-1].Points
+			prev := completed[len(completed)-2].Points
+			switch {
+			case recent > prev:
+				health.VelocityTrend = "up"
+			case recent < prev:
+				health.VelocityTrend = "down"
+			default:
+				health.VelocityTrend = "stable"
+			}
+		} else {
 			health.VelocityTrend = "stable"
 		}
 	}
