@@ -6,6 +6,18 @@ This file is auto-generated from [conventional commits](https://www.conventional
 
 ## Bug Fixes
 
+- Show agent count in session banner idle state, fix CSP onclick (af1a619)
+- Make issue list titles proper <a> links (0d0d586)
+- Allow board card clicks to navigate to issue detail (e164fda)
+- Exclude partial current week from velocity trend comparison (8075e49)
+
+## Features
+
+- Show parent/child issue hierarchy in issue list view (7d47df9)
+
+
+## Bug Fixes
+
 - Resolve all 331 pre-existing golangci-lint errors (2002706)
 - Store CSRF token in request context for first-load correctness (e9b27fa)
 - Render markdown in issue descriptions and comment bodies (b20d6e5)
