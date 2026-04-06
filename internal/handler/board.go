@@ -87,6 +87,8 @@ document.querySelectorAll('[id^="column-"]').forEach(function(col) {
         group: 'board',
         animation: 150,
         ghostClass: 'opacity-50',
+        delay: 150,
+        delayOnTouchOnly: false,
         onEnd: function(evt) {
             var issueId = evt.item.dataset.issueId;
             var newStatus = evt.to.dataset.status;
