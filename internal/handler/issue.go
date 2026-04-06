@@ -61,10 +61,10 @@ var issueListTpl = template.Must(template.New("issue-list").Funcs(funcMap).Parse
         </thead>
         <tbody id="issue-table-body">
             {{range .Content.Nodes}}
-            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onclick="window.location='/projects/{{$p.Key}}/issues/{{.Issue.Number}}'">
-                <td class="px-4 py-2 font-mono text-xs text-slate-500">{{$p.Key}}-{{.Issue.Number}}</td>
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-4 py-2 font-mono text-xs"><a href="/projects/{{$p.Key}}/issues/{{.Issue.Number}}" class="text-slate-500 hover:text-blue-600">{{$p.Key}}-{{.Issue.Number}}</a></td>
                 <td class="px-4 py-2">
-                    {{.Issue.Title}}
+                    <a href="/projects/{{$p.Key}}/issues/{{.Issue.Number}}" class="text-slate-800 hover:text-blue-600 font-medium">{{.Issue.Title}}</a>
                     {{if .Children}}<span class="ml-1 text-xs text-slate-400">({{len .Children}} sub)</span>{{end}}
                 </td>
                 <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-medium {{statusColor .Issue.Status}}">{{.Issue.Status}}</span></td>
@@ -73,11 +73,11 @@ var issueListTpl = template.Must(template.New("issue-list").Funcs(funcMap).Parse
                 <td class="px-4 py-2 text-xs">{{if .Issue.StoryPoints}}{{deref .Issue.StoryPoints}}{{else}}-{{end}}</td>
             </tr>
             {{range .Children}}
-            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer bg-slate-50/50" onclick="window.location='/projects/{{$p.Key}}/issues/{{.Number}}'">
-                <td class="px-4 py-2 font-mono text-xs text-slate-400 pl-8">{{$p.Key}}-{{.Number}}</td>
-                <td class="px-4 py-2 pl-8 flex items-center gap-1">
-                    <span class="text-slate-300">&lfloor;</span>
-                    {{.Title}}
+            <tr class="border-b border-slate-100 hover:bg-slate-50 bg-slate-50/50">
+                <td class="px-4 py-2 font-mono text-xs pl-8"><a href="/projects/{{$p.Key}}/issues/{{.Number}}" class="text-slate-400 hover:text-blue-600">{{$p.Key}}-{{.Number}}</a></td>
+                <td class="px-4 py-2 pl-8">
+                    <span class="text-slate-300 mr-1">&lfloor;</span>
+                    <a href="/projects/{{$p.Key}}/issues/{{.Number}}" class="text-slate-800 hover:text-blue-600">{{.Title}}</a>
                 </td>
                 <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs font-medium {{statusColor .Status}}">{{.Status}}</span></td>
                 <td class="px-4 py-2"><span class="text-xs {{priorityColor .Priority}}">{{.Priority}}</span></td>
