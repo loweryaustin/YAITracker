@@ -365,7 +365,11 @@ var sessionBannerTpl = template.Must(template.New("session-banner").Funcs(funcMa
             <button hx-post="/time/stop" hx-target="#session-banner" hx-swap="innerHTML"
                     class="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200">Stop</button>
             {{else}}
-            <span class="text-blue-400">idle</span>
+            {{if .AgentTimers}}
+            <span class="text-purple-500">{{len .AgentTimers}} agent{{if gt (len .AgentTimers) 1}}s{{end}} working</span>
+            {{else}}
+            <span class="text-blue-400">No active timers</span>
+            {{end}}
             {{end}}
         </div>
         {{if .AgentTimers}}
@@ -519,8 +523,8 @@ var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(app
                     <span class="font-mono text-sm text-slate-700" x-text="Math.floor(elapsed/3600) + 'h ' + Math.floor((elapsed%3600)/60) + 'm ' + (elapsed%60) + 's'"></span>
                     {{if eq .ActorType "human"}}
                     <button hx-post="/time/stop" hx-target="#session-banner" hx-swap="innerHTML"
-                            class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100"
-                            onclick="setTimeout(() => location.reload(), 300)">Stop</button>
+                            hx-on::after-request="setTimeout(function(){location.reload()},300)"
+                            class="px-2 py-1 bg-red-50 text-red-600 rounded text-xs hover:bg-red-100">Stop</button>
                     {{end}}
                 </div>
             </div>
@@ -559,12 +563,12 @@ var timeHubTpl = template.Must(template.New("time-hub").Funcs(funcMap).Parse(app
         <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wide">Session History</h2>
         {{if $d.Session}}
         <button hx-post="/session/end" hx-target="#session-banner" hx-swap="innerHTML"
-                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 font-medium"
-                onclick="setTimeout(() => location.reload(), 300)">Clock Out</button>
+                hx-on::after-request="setTimeout(function(){location.reload()},300)"
+                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 font-medium">Clock Out</button>
         {{else}}
         <button hx-post="/session/start" hx-target="#session-banner" hx-swap="innerHTML"
-                class="px-3 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700 font-medium"
-                onclick="setTimeout(() => location.reload(), 300)">Clock In</button>
+                hx-on::after-request="setTimeout(function(){location.reload()},300)"
+                class="px-3 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700 font-medium">Clock In</button>
         {{end}}
     </div>
     {{if $d.Sessions}}
